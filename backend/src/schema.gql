@@ -1,0 +1,136 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+"""Local business lead extracted from Google Maps"""
+type Lead {
+  address: String
+  category: String
+  createdAt: DateTime!
+  email: String
+  emailSource: String
+  googleMapsUrl: String
+  id: ID!
+  name: String!
+  notes: String
+  opportunityScore: Int!
+  opportunityTags: [String!]!
+  phone: String
+  rating: Float
+  reviewCount: Int
+  searchQuery: String
+  status: String!
+  updatedAt: DateTime!
+  website: String
+}
+
+input LeadFilterInput {
+  category: String
+  lowRatingOnly: Boolean
+  lowReviewsOnly: Boolean
+  minOpportunityScore: Int
+  noWebsiteOnly: Boolean
+  search: String
+  status: String
+}
+
+type LeadStats {
+  avgOpportunityScore: Float!
+  highPriorityLeadsCount: Int!
+  lowRatingCount: Int!
+  lowReviewsCount: Int!
+  noWebsiteCount: Int!
+  totalLeads: Int!
+}
+
+type Mutation {
+  """Delete a lead by ID"""
+  deleteLead(id: ID!): Boolean!
+
+  """Search OSINT web sources to discover email for a lead"""
+  findEmailForLead(id: ID!): Lead!
+
+  """Generate tailored freelancing cold outreach pitch for a lead"""
+  generatePitch(leadId: ID!, serviceType: String): OutreachPitch!
+
+  """Batch upload scraped leads from Chrome Extension"""
+  syncLeads(input: SyncLeadsInput!): SyncLeadsResult!
+
+  """Update CRM lead status and notes"""
+  updateLeadStatus(input: UpdateLeadStatusInput!): Lead!
+}
+
+"""Generated outreach pitch for a specific lead"""
+type OutreachPitch {
+  body: String!
+  businessName: String!
+  keyHighlights: [String!]!
+  leadId: String!
+  serviceType: String!
+  subject: String!
+}
+
+type PaginatedLeads {
+  items: [Lead!]!
+  page: Int!
+  totalCount: Int!
+  totalPages: Int!
+}
+
+input PaginationInput {
+  limit: Int! = 20
+  page: Int! = 1
+  sortBy: String! = "createdAt"
+  sortOrder: SortOrder! = DESC
+}
+
+type Query {
+  """Fetch single lead by ID"""
+  lead(id: ID!): Lead
+
+  """Get analytics summary of all scraped leads"""
+  leadStats: LeadStats!
+
+  """Fetch leads with filters and pagination"""
+  leads(filter: LeadFilterInput, pagination: PaginationInput): PaginatedLeads!
+}
+
+input ScrapedLeadInput {
+  address: String
+  category: String
+  email: String
+  googleMapsUrl: String
+  name: String!
+  phone: String
+  rating: Float
+  reviewCount: Int
+  searchQuery: String
+  website: String
+}
+
+"""Sort direction (ASC or DESC)"""
+enum SortOrder {
+  ASC
+  DESC
+}
+
+input SyncLeadsInput {
+  leads: [ScrapedLeadInput!]!
+}
+
+type SyncLeadsResult {
+  addedCount: Int!
+  totalProcessed: Int!
+  updatedCount: Int!
+}
+
+input UpdateLeadStatusInput {
+  id: String!
+  notes: String
+  status: String!
+}

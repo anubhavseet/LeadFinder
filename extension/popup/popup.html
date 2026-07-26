@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeadFinder Extension</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup-container">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">LF</div>
+        <div class="logo-text">
+          <h1>LeadFinder</h1>
+          <span class="version">v1.0 Stealth</span>
+        </div>
+      </div>
+      <div class="server-status" id="server-status" title="NestJS GraphQL Backend Status">
+        <span class="status-dot"></span>
+        <span class="status-text">GraphQL Port 4000</span>
+      </div>
+    </div>
+
+    <div id="notice-banner" class="notice-banner hidden">
+      <span id="notice-text"></span>
+    </div>
+
+    <div class="card main-controls">
+      <h2>Target Google Maps Tab</h2>
+      <p class="subtitle" id="tab-status-text">Detecting active browser tab...</p>
+      
+      <div class="input-group">
+        <label for="max-leads">Max Leads Cap</label>
+        <select id="max-leads">
+          <option value="25">25 Leads</option>
+          <option value="50" selected>50 Leads (Recommended)</option>
+          <option value="100">100 Leads</option>
+          <option value="250">250 Leads</option>
+        </select>
+      </div>
+
+      <div class="btn-group">
+        <button id="btn-start" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span id="btn-start-text">Start Scraper</span>
+        </button>
+        <button id="btn-open-maps" class="btn btn-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          Open Google Maps
+        </button>
+        <button id="btn-dashboard" class="btn btn-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Open CRM Dashboard
+        </button>
+      </div>
+    </div>
+
+    <div class="card stats-card">
+      <div class="stat-row">
+        <span class="stat-label">Session Scraped</span>
+        <span class="stat-value" id="stat-scraped">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Stealth Scroll Delay</span>
+        <span class="stat-value highlight">2.0s - 4.5s (Humanized)</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>LeadFinder Anti-Blocking Engine</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
