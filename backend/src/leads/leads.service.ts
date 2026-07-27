@@ -275,4 +275,14 @@ export class LeadsService {
       avgOpportunityScore: Math.round(avgOpportunityScore * 10) / 10,
     };
   }
+
+  async updateEmail(id: string, email: string, emailSource?: string): Promise<Lead> {
+    const lead = await this.leadModel.findById(id).exec();
+    if (!lead) {
+      throw new Error(`Lead with ID ${id} not found`);
+    }
+    lead.email = email;
+    if (emailSource) lead.emailSource = emailSource;
+    return lead.save();
+  }
 }

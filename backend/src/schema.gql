@@ -49,6 +49,9 @@ type LeadStats {
 }
 
 type Mutation {
+  """Batch dispatch SMS pitches to multiple selected leads"""
+  batchSendSmsPitches(leadIds: [ID!]!): SyncLeadsResult!
+
   """Delete a lead by ID"""
   deleteLead(id: ID!): Boolean!
 
@@ -58,8 +61,14 @@ type Mutation {
   """Generate tailored freelancing cold outreach pitch for a lead"""
   generatePitch(leadId: ID!, serviceType: String): OutreachPitch!
 
+  """Automated backend Email-to-SMS gateway pitch dispatch to lead"""
+  sendSmsPitchForLead(id: ID!): Lead!
+
   """Batch upload scraped leads from Chrome Extension"""
   syncLeads(input: SyncLeadsInput!): SyncLeadsResult!
+
+  """Update lead email and source"""
+  updateLeadEmail(email: String!, emailSource: String, id: ID!): Lead!
 
   """Update CRM lead status and notes"""
   updateLeadStatus(input: UpdateLeadStatusInput!): Lead!

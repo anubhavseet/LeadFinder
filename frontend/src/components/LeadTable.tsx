@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Star, Globe, Phone, ExternalLink, Mail, Trash2, ChevronLeft, ChevronRight, Search, Loader2 } from 'lucide-react';
+import { Star, Globe, Phone, ExternalLink, Mail, Trash2, ChevronLeft, ChevronRight, Search, Loader2, Send, CheckSquare, Square } from 'lucide-react';
 import { Lead } from '../types';
+import { generateMailtoLink, generateSmsPitchText } from '../utils/smsGateway';
 
 interface LeadTableProps {
   leads: Lead[];
@@ -15,6 +16,8 @@ interface LeadTableProps {
   onUpdateStatus: (id: string, status: string) => void;
   onDeleteLead: (id: string) => void;
   onFindEmail?: (id: string) => Promise<void>;
+  onSendSmsPitch?: (id: string) => Promise<void>;
+  onBatchSendSmsPitches?: (ids: string[]) => Promise<void>;
 }
 
 export const LeadTable: React.FC<LeadTableProps> = ({
@@ -30,8 +33,13 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   onUpdateStatus,
   onDeleteLead,
   onFindEmail,
+  onSendSmsPitch,
+  onBatchSendSmsPitches,
 }) => {
   const [findingEmailId, setFindingEmailId] = useState<string | null>(null);
+  const [sendingSmsId, setSendingSmsId] = useState<string | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [batchSending, setBatchSending] = useState<boolean>(false);
 
   const handleFindEmail = async (id: string) => {
     if (!onFindEmail) return;
@@ -42,6 +50,44 @@ export const LeadTable: React.FC<LeadTableProps> = ({
       setFindingEmailId(null);
     }
   };
+
+  const handleAutoSendSms = async (id: string) => {
+    if (!onSendSmsPitch) return;
+    setSendingSmsId(id);
+    try {
+      await onSendSmsPitch(id);
+    } finally {
+      setSendingSmsId(null);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.length === leads.length) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(leads.map((l) => l.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    if (selectedLeadIds.includes(id)) {
+      setSelectedLeadIds(selectedLeadIds.filter((item) => item !== id));
+    } else {
+      setSelectedLeadIds([...selectedLeadIds, id]);
+    }
+  };
+
+  const handleBatchSend = async () => {
+    if (!onBatchSendSmsPitches || selectedLeadIds.length === 0) return;
+    setBatchSending(true);
+    try {
+      await onBatchSendSmsPitches(selectedLeadIds);
+      setSelectedLeadIds([]);
+    } finally {
+      setBatchSending(false);
+    }
+  };
+
   if (leads.length === 0) {
     return (
       <div className="p-12 text-center bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg">
@@ -61,11 +107,46 @@ export const LeadTable: React.FC<LeadTableProps> = ({
 
   return (
     <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+      {/* Batch Actions Bar (Visible when rows are selected) */}
+      {selectedLeadIds.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-900/90 to-indigo-900/90 border-b border-blue-500/30 px-6 py-3 flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-2 text-xs font-bold text-blue-200">
+            <CheckSquare size={16} className="text-blue-400" />
+            <span>{selectedLeadIds.length} Leads Selected for Automated Email-to-SMS Dispatch</span>
+          </div>
+          <button
+            onClick={handleBatchSend}
+            disabled={batchSending}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
+          >
+            {batchSending ? (
+              <>
+                <Loader2 size={14} className="animate-spin text-white" />
+                <span>Sending Batch SMS...</span>
+              </>
+            ) : (
+              <>
+                <Send size={14} />
+                <span>Auto-Send SMS to {selectedLeadIds.length} Selected Leads</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Table Container */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-950/80 border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <th className="py-4 px-4 w-10 text-center">
+                <input
+                  type="checkbox"
+                  checked={selectedLeadIds.length > 0 && selectedLeadIds.length === leads.length}
+                  onChange={toggleSelectAll}
+                  className="rounded border-white/20 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </th>
               <th className="py-4 px-5">Business Name &amp; Category</th>
               <th className="py-4 px-5">Contact &amp; Website</th>
               <th className="py-4 px-5">Rating &amp; Reviews</th>
@@ -78,6 +159,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           <tbody className="divide-y divide-white/5 text-sm">
             {leads.map((lead) => {
               const hasNoWebsite = !lead.website || lead.website.trim() === '';
+              const isSelected = selectedLeadIds.includes(lead.id);
               const scoreColor =
                 lead.opportunityScore >= 70
                   ? 'from-amber-400 to-emerald-400 text-emerald-400'
@@ -85,8 +167,26 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                   ? 'from-blue-500 to-indigo-500 text-blue-400'
                   : 'from-slate-600 to-slate-500 text-slate-400';
 
+              const pitchText = generateSmsPitchText(lead.name, lead.category, lead.address, lead.rating);
+              const mailtoSmsUrl = lead.phone ? generateMailtoLink(lead.phone, pitchText) : '#';
+
               return (
-                <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
+                <tr
+                  key={lead.id}
+                  className={`transition-colors ${
+                    isSelected ? 'bg-blue-900/20' : 'hover:bg-slate-800/40'
+                  }`}
+                >
+                  {/* Select Checkbox */}
+                  <td className="py-3.5 px-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectRow(lead.id)}
+                      className="rounded border-white/20 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+                    />
+                  </td>
+
                   {/* Business Name & Category */}
                   <td className="py-3.5 px-5">
                     <div className="flex flex-col">
@@ -227,10 +327,41 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                   {/* Action Buttons */}
                   <td className="py-3.5 px-5 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      {/* Pitch Button */}
+                      {/* Automated Backend SMS Pitch */}
+                      {lead.phone && (
+                        <button
+                          onClick={() => handleAutoSendSms(lead.id)}
+                          disabled={sendingSmsId === lead.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                          title="Automated Email-to-SMS via Backend SMTP"
+                        >
+                          {sendingSmsId === lead.id ? (
+                            <Loader2 size={12} className="animate-spin text-white" />
+                          ) : (
+                            <Send size={12} />
+                          )}
+                          <span>Auto SMS</span>
+                        </button>
+                      )}
+
+                      {/* Manual Gmail SMS Mailto Link */}
+                      {lead.phone && (
+                        <a
+                          href={mailtoSmsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all border border-white/10"
+                          title="Launch Gmail to Send Text via Email"
+                        >
+                          <Mail size={12} className="text-amber-400" />
+                          <span>Gmail SMS</span>
+                        </a>
+                      )}
+
+                      {/* Standard Pitch Button */}
                       <button
                         onClick={() => onOpenPitch(lead)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95"
                       >
                         <Mail size={12} />
                         <span>Pitch</span>
@@ -242,20 +373,20 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                           href={lead.googleMapsUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 rounded-lg transition-all"
+                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
                           title="View on Google Maps"
                         >
-                          <ExternalLink size={13} />
+                          <ExternalLink size={14} />
                         </a>
                       )}
 
-                      {/* Delete Lead Button */}
+                      {/* Delete Lead */}
                       <button
                         onClick={() => onDeleteLead(lead.id)}
-                        className="p-1.5 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 rounded-lg transition-all"
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
                         title="Delete Lead"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>
@@ -266,24 +397,21 @@ export const LeadTable: React.FC<LeadTableProps> = ({
         </table>
       </div>
 
-      {/* Pagination Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-950/80 border-t border-white/10 text-xs text-slate-400">
-        {/* Total & Current Showing Count */}
-        <div>
-          Showing <span className="font-bold text-slate-200">{startItem}</span> to{' '}
-          <span className="font-bold text-slate-200">{endItem}</span> of{' '}
-          <span className="font-bold text-slate-200">{totalCount}</span> leads
-        </div>
+      {/* Pagination Footer */}
+      <div className="bg-slate-950/80 border-t border-white/10 px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-4">
+          <span>
+            Showing <strong className="text-slate-200">{startItem}</strong> to{' '}
+            <strong className="text-slate-200">{endItem}</strong> of{' '}
+            <strong className="text-slate-200">{totalCount}</strong> leads
+          </span>
 
-        {/* Controls: Page size & Nav buttons */}
-        <div className="flex items-center gap-3">
-          {/* Items Per Page Selector */}
           <div className="flex items-center gap-1.5">
-            <span>Per page:</span>
+            <span className="text-[11px]">Rows:</span>
             <select
               value={limit}
               onChange={(e) => onLimitChange(Number(e.target.value))}
-              className="bg-slate-900 border border-white/10 text-slate-200 text-xs font-bold rounded-md px-2 py-1 outline-none"
+              className="bg-slate-900 border border-white/10 text-slate-200 font-semibold rounded px-2 py-0.5 text-xs outline-none focus:border-blue-500 cursor-pointer"
             >
               <option value={10}>10</option>
               <option value={15}>15</option>
@@ -291,26 +419,25 @@ export const LeadTable: React.FC<LeadTableProps> = ({
               <option value={50}>50</option>
             </select>
           </div>
+        </div>
 
-          {/* Previous Button */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="p-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 rounded-lg transition-all"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:hover:bg-slate-800 transition-all"
           >
             <ChevronLeft size={16} />
           </button>
 
-          {/* Page Indicator */}
-          <span className="font-bold text-slate-200">
-            Page {page} of {totalPages || 1}
+          <span className="font-semibold text-slate-200 px-2">
+            Page {page} of {totalPages}
           </span>
 
-          {/* Next Button */}
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="p-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 rounded-lg transition-all"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:hover:bg-slate-800 transition-all"
           >
             <ChevronRight size={16} />
           </button>

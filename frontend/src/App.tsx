@@ -5,7 +5,7 @@ import { LeadFilters } from './components/LeadFilters';
 import { LeadTable } from './components/LeadTable';
 import { PitchModal } from './components/PitchModal';
 import { Lead, LeadStats } from './types';
-import { getLeads, getLeadStats, updateLeadStatus, deleteLead, findEmailForLead } from './api/graphqlClient';
+import { getLeads, getLeadStats, updateLeadStatus, deleteLead, findEmailForLead, sendSmsPitchForLead, batchSendSmsPitches } from './api/graphqlClient';
 
 export const App: React.FC = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -121,7 +121,40 @@ export const App: React.FC = () => {
   };
 
   const handleFindEmail = async (id: string) => {
+    const lead = leads.find((l) => l.id === id);
+    if (!lead) return;
+
     try {
+      // 1. Try communicating with Chrome Extension if active
+      let extensionRes: any = null;
+      if (
+        typeof window !== 'undefined' &&
+        (window as any).chrome &&
+        (window as any).chrome.runtime &&
+        (window as any).chrome.runtime.sendMessage
+      ) {
+        try {
+          extensionRes = await new Promise((resolve) => {
+            (window as any).chrome.runtime.sendMessage(
+              { action: 'SEARCH_LEAD_EMAIL', leadId: lead.id, name: lead.name, address: lead.address },
+              (response: any) => resolve(response)
+            );
+          });
+        } catch (e) {
+          console.warn('Chrome extension messaging fallback:', e);
+        }
+      }
+
+      if (extensionRes && extensionRes.success && extensionRes.email) {
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === id ? { ...l, email: extensionRes.email, emailSource: extensionRes.emailSource } : l
+          )
+        );
+        return;
+      }
+
+      // 2. Fallback to GraphQL Backend OSINT search
       const updated = await findEmailForLead(id);
       if (updated.email) {
         setLeads((prev) =>
@@ -133,6 +166,27 @@ export const App: React.FC = () => {
     } catch (err) {
       console.error('Failed to find email:', err);
       alert('Error searching for email. Please try again.');
+    }
+  };
+
+  const handleSendSmsPitch = async (id: string) => {
+    try {
+      await sendSmsPitchForLead(id);
+      loadData();
+    } catch (err: any) {
+      console.error('Failed to send SMS pitch:', err);
+      alert(`Failed to send SMS pitch: ${err.message || err}`);
+    }
+  };
+
+  const handleBatchSendSmsPitches = async (leadIds: string[]) => {
+    try {
+      const res = await batchSendSmsPitches(leadIds);
+      alert(`Successfully dispatched SMS pitches to ${res.updatedCount} leads!`);
+      loadData();
+    } catch (err: any) {
+      console.error('Failed batch SMS pitch:', err);
+      alert(`Batch SMS dispatch error: ${err.message || err}`);
     }
   };
 
@@ -176,12 +230,15 @@ export const App: React.FC = () => {
           onUpdateStatus={handleUpdateStatus}
           onDeleteLead={handleDeleteLead}
           onFindEmail={handleFindEmail}
+          onSendSmsPitch={handleSendSmsPitch}
+          onBatchSendSmsPitches={handleBatchSendSmsPitches}
         />
 
         {selectedLeadForPitch && (
           <PitchModal
             lead={selectedLeadForPitch}
             onClose={() => setSelectedLeadForPitch(null)}
+            onSendSmsPitch={handleSendSmsPitch}
           />
         )}
       </div>

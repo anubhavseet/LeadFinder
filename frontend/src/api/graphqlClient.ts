@@ -243,3 +243,31 @@ export async function findEmailForLead(id: string): Promise<Lead> {
   const data = await fetchGraphQL<{ findEmailForLead: Lead }>(query, { id });
   return data.findEmailForLead;
 }
+
+export async function sendSmsPitchForLead(id: string): Promise<Lead> {
+  const query = `
+    mutation SendSmsPitchForLead($id: ID!) {
+      sendSmsPitchForLead(id: $id) {
+        id
+        name
+        status
+        notes
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ sendSmsPitchForLead: Lead }>(query, { id });
+  return data.sendSmsPitchForLead;
+}
+
+export async function batchSendSmsPitches(leadIds: string[]): Promise<{ updatedCount: number; totalProcessed: number }> {
+  const query = `
+    mutation BatchSendSmsPitches($leadIds: [ID!]!) {
+      batchSendSmsPitches(leadIds: $leadIds) {
+        updatedCount
+        totalProcessed
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ batchSendSmsPitches: { updatedCount: number; totalProcessed: number } }>(query, { leadIds });
+  return data.batchSendSmsPitches;
+}

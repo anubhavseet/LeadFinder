@@ -9,7 +9,7 @@ export class EmailFinderService {
 
   constructor(
     @InjectModel(Lead.name) private readonly leadModel: Model<LeadDocument>,
-  ) {}
+  ) { }
 
   /**
    * Search OSINT / Web sources for a business lead's contact email.
@@ -97,7 +97,7 @@ export class EmailFinderService {
    */
   private async performWebSearch(query: string): Promise<{ text: string; urls: string[] }> {
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    
+
     const response = await fetch(searchUrl, {
       headers: {
         'User-Agent':
@@ -106,12 +106,14 @@ export class EmailFinderService {
       },
     });
 
+    console.log(response)
+
     if (!response.ok) {
       throw new Error(`DuckDuckGo HTTP ${response.status}`);
     }
 
     const html = await response.text();
-    
+
     // Extract external links embedded in search results
     const urlRegex = /href="([^"]+)"/gi;
     const urls: string[] = [];
@@ -181,7 +183,7 @@ export class EmailFinderService {
     );
 
     const selectedEmail = webmail || validEmails[0];
-    
+
     let source = 'Web Search';
     if (/@(gmail|yahoo|outlook|hotmail)\./i.test(selectedEmail)) {
       source = 'Webmail OSINT';

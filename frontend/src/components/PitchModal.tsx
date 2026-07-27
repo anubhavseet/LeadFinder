@@ -6,13 +6,28 @@ import { generateOutreachPitch } from '../api/graphqlClient';
 interface PitchModalProps {
   lead: Lead;
   onClose: () => void;
+  onSendSmsPitch?: (id: string) => Promise<void>;
 }
 
-export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose }) => {
+export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSmsPitch }) => {
   const [serviceType, setServiceType] = useState<string>('Web Development');
   const [pitch, setPitch] = useState<OutreachPitch | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
+  const [sendingSms, setSendingSms] = useState<boolean>(false);
+
+  const handleAutoSendSms = async () => {
+    if (!onSendSmsPitch) return;
+    setSendingSms(true);
+    try {
+      await onSendSmsPitch(lead.id);
+      alert(`Automated SMS pitch dispatched to carrier gateways for ${lead.name}!`);
+    } catch (err) {
+      alert(`Error sending SMS: ${err}`);
+    } finally {
+      setSendingSms(false);
+    }
+  };
 
   const fetchPitch = async (type: string) => {
     setLoading(true);
@@ -158,6 +173,17 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose }) => {
           </span>
 
           <div className="flex items-center gap-2">
+            {lead.phone && onSendSmsPitch && (
+              <button
+                onClick={handleAutoSendSms}
+                disabled={sendingSms}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/30 disabled:opacity-50"
+              >
+                <Send size={14} />
+                <span>{sendingSms ? 'Sending SMS...' : 'Auto-Send SMS'}</span>
+              </button>
+            )}
+
             <button
               onClick={onClose}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-white/10 transition-all"
