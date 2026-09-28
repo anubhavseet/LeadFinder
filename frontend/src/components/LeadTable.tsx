@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Globe, Phone, ExternalLink, Mail, Trash2, ChevronLeft, ChevronRight, Search, Loader2, Send, CheckSquare, Square } from 'lucide-react';
+import { Star, Globe, Phone, ExternalLink, Mail, Trash2, ChevronLeft, ChevronRight, Search, Loader2, Send, CheckSquare } from 'lucide-react';
 import { Lead } from '../types';
 import { generateMailtoLink, generateSmsPitchText } from '../utils/smsGateway';
 
@@ -90,13 +90,13 @@ export const LeadTable: React.FC<LeadTableProps> = ({
 
   if (leads.length === 0) {
     return (
-      <div className="p-12 text-center bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg">
-        <div className="w-16 h-16 mx-auto mb-4 bg-slate-800/80 border border-white/10 rounded-2xl flex items-center justify-center text-slate-400">
-          <Globe size={28} />
+      <div className="p-12 text-center bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="w-12 h-12 mx-auto mb-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-center text-gray-400">
+          <Globe size={22} />
         </div>
-        <h3 className="text-lg font-bold text-slate-200 mb-1">No Leads Found</h3>
-        <p className="text-xs text-slate-400 max-w-md mx-auto">
-          No leads match your current search or filter criteria. Use the Chrome Extension on Google Maps to scrape new targets or reset your filters!
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">No leads found</h3>
+        <p className="text-xs text-gray-500 max-w-sm mx-auto">
+          No leads match your current search or filter criteria. Scrape new targets via the extension or clear active filters.
         </p>
       </div>
     );
@@ -106,28 +106,28 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   const endItem = Math.min(page * limit, totalCount);
 
   return (
-    <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
       {/* Batch Actions Bar (Visible when rows are selected) */}
       {selectedLeadIds.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-900/90 to-indigo-900/90 border-b border-blue-500/30 px-6 py-3 flex items-center justify-between animate-fade-in">
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-200">
-            <CheckSquare size={16} className="text-blue-400" />
-            <span>{selectedLeadIds.length} Leads Selected for Automated Email-to-SMS Dispatch</span>
+        <div className="bg-blue-50 border-b border-blue-200 px-6 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-medium text-blue-900">
+            <CheckSquare size={15} className="text-blue-600" />
+            <span>{selectedLeadIds.length} leads selected for outreach</span>
           </div>
           <button
             onClick={handleBatchSend}
             disabled={batchSending}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-colors disabled:opacity-50"
           >
             {batchSending ? (
               <>
-                <Loader2 size={14} className="animate-spin text-white" />
-                <span>Sending Batch SMS...</span>
+                <Loader2 size={13} className="animate-spin text-white" />
+                <span>Sending SMS...</span>
               </>
             ) : (
               <>
-                <Send size={14} />
-                <span>Auto-Send SMS to {selectedLeadIds.length} Selected Leads</span>
+                <Send size={13} />
+                <span>Send SMS to {selectedLeadIds.length} leads</span>
               </>
             )}
           </button>
@@ -138,34 +138,34 @@ export const LeadTable: React.FC<LeadTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-950/80 border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              <th className="py-4 px-4 w-10 text-center">
+            <tr className="bg-gray-50/80 border-b border-gray-200 text-[11px] font-medium uppercase tracking-wider text-gray-500">
+              <th className="py-3 px-4 w-10 text-center">
                 <input
                   type="checkbox"
                   checked={selectedLeadIds.length > 0 && selectedLeadIds.length === leads.length}
                   onChange={toggleSelectAll}
-                  className="rounded border-white/20 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+                  className="rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer"
                 />
               </th>
-              <th className="py-4 px-5">Business Name &amp; Category</th>
-              <th className="py-4 px-5">Contact &amp; Website</th>
-              <th className="py-4 px-5">Rating &amp; Reviews</th>
-              <th className="py-4 px-5">Opportunity Signals</th>
-              <th className="py-4 px-5">Score</th>
-              <th className="py-4 px-5">Status</th>
-              <th className="py-4 px-5 text-right">Actions</th>
+              <th className="py-3 px-4">Business</th>
+              <th className="py-3 px-4">Contact</th>
+              <th className="py-3 px-4">Rating</th>
+              <th className="py-3 px-4">Gaps</th>
+              <th className="py-3 px-4">Score</th>
+              <th className="py-3 px-4">Status</th>
+              <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5 text-sm">
+          <tbody className="divide-y divide-gray-100 text-xs">
             {leads.map((lead) => {
               const hasNoWebsite = !lead.website || lead.website.trim() === '';
               const isSelected = selectedLeadIds.includes(lead.id);
               const scoreColor =
                 lead.opportunityScore >= 70
-                  ? 'from-amber-400 to-emerald-400 text-emerald-400'
+                  ? 'bg-emerald-600'
                   : lead.opportunityScore >= 40
-                  ? 'from-blue-500 to-indigo-500 text-blue-400'
-                  : 'from-slate-600 to-slate-500 text-slate-400';
+                  ? 'bg-blue-600'
+                  : 'bg-gray-400';
 
               const pitchText = generateSmsPitchText(lead.name, lead.category, lead.address, lead.rating);
               const mailtoSmsUrl = lead.phone ? generateMailtoLink(lead.phone, pitchText) : '#';
@@ -174,38 +174,49 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                 <tr
                   key={lead.id}
                   className={`transition-colors ${
-                    isSelected ? 'bg-blue-900/20' : 'hover:bg-slate-800/40'
+                    isSelected ? 'bg-blue-50/50' : 'hover:bg-gray-50/60'
                   }`}
                 >
                   {/* Select Checkbox */}
-                  <td className="py-3.5 px-4 text-center">
+                  <td className="py-3 px-4 text-center">
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleSelectRow(lead.id)}
-                      className="rounded border-white/20 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer"
                     />
                   </td>
 
                   {/* Business Name & Category */}
-                  <td className="py-3.5 px-5">
+                  <td className="py-3 px-4">
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-100 text-sm leading-snug">{lead.name}</span>
-                      <span className="text-xs text-blue-400 font-medium mt-0.5">{lead.category || 'Local Business'}</span>
-                      {lead.address && <span className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{lead.address}</span>}
+                      <span className="font-semibold text-gray-950 text-xs">{lead.name}</span>
+                      <span className="text-[11px] text-gray-500 mt-0.5">{lead.category || 'Local business'}</span>
+                      {lead.address && <span className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">{lead.address}</span>}
                     </div>
                   </td>
 
                   {/* Contact & Website */}
-                  <td className="py-3.5 px-5">
-                    <div className="flex flex-col gap-1.5 text-xs">
+                  <td className="py-3 px-4">
+                    <div className="flex flex-col gap-1 text-xs">
                       {lead.phone ? (
-                        <span className="inline-flex items-center gap-1.5 text-slate-200 font-medium">
-                          <Phone size={12} className="text-blue-400 shrink-0" />
-                          {lead.phone}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-gray-700">
+                            <Phone size={11} className="text-gray-400 shrink-0" />
+                            {lead.phone}
+                          </span>
+                          {lead.lineType === 'LANDLINE' || lead.lineType === 'VOIP' || lead.opportunityTags?.includes('LANDLINE_NUMBER') ? (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                              Landline
+                            </span>
+                          ) : lead.lineType === 'MOBILE' ? (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Mobile
+                            </span>
+                          ) : null}
+                        </div>
                       ) : (
-                        <span className="text-slate-500 italic text-[11px]">No Phone</span>
+                        <span className="text-gray-400 text-[11px]">No phone</span>
                       )}
 
                       {!hasNoWebsite && lead.website ? (
@@ -213,49 +224,44 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                           href={lead.website}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-medium hover:underline truncate max-w-[200px]"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[180px] text-[11px]"
                         >
-                          <Globe size={12} className="shrink-0" />
+                          <Globe size={11} className="shrink-0 text-gray-400" />
                           <span className="truncate">{(lead.website || '').replace(/^https?:\/\/(www\.)?/, '')}</span>
                         </a>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-300 border border-amber-500/30 w-max">
-                          NO WEBSITE
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 w-max">
+                          No website
                         </span>
                       )}
 
-                      {/* Email OSINT Discovery */}
+                      {/* Email Discovery */}
                       {lead.email ? (
-                        <div className="flex items-center gap-1 mt-0.5">
+                        <div className="flex items-center gap-1">
                           <a
                             href={`mailto:${lead.email}`}
-                            className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold hover:underline truncate max-w-[180px] text-[11px]"
+                            className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-medium hover:underline truncate max-w-[160px] text-[11px]"
                             title={lead.email}
                           >
-                            <Mail size={12} className="shrink-0" />
+                            <Mail size={11} className="shrink-0 text-emerald-600" />
                             <span className="truncate">{lead.email}</span>
                           </a>
-                          {lead.emailSource && (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 border border-white/5">
-                              {lead.emailSource}
-                            </span>
-                          )}
                         </div>
                       ) : (
                         <button
                           onClick={() => handleFindEmail(lead.id)}
                           disabled={findingEmailId === lead.id}
-                          className="inline-flex items-center gap-1 mt-0.5 px-2 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-[10px] font-bold transition-all disabled:opacity-50 w-max"
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 hover:text-gray-800 w-max"
                         >
                           {findingEmailId === lead.id ? (
                             <>
-                              <Loader2 size={10} className="animate-spin text-indigo-400" />
-                              Finding Email...
+                              <Loader2 size={10} className="animate-spin text-gray-400" />
+                              <span>Searching...</span>
                             </>
                           ) : (
                             <>
-                              <Search size={10} className="text-indigo-400" />
-                              Find Email
+                              <Search size={10} className="text-gray-400" />
+                              <span>Find email</span>
                             </>
                           )}
                         </button>
@@ -264,46 +270,46 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                   </td>
 
                   {/* Rating & Reviews */}
-                  <td className="py-3.5 px-5">
+                  <td className="py-3 px-4">
                     <div className="flex items-center gap-1.5">
-                      <Star size={14} className="text-amber-400 fill-amber-400 shrink-0" />
-                      <span className="font-extrabold text-slate-100 text-xs">{lead.rating || 'N/A'}</span>
-                      <span className="text-[11px] text-slate-400">
+                      <Star size={13} className="text-amber-500 fill-amber-500 shrink-0" />
+                      <span className="font-semibold text-gray-900 text-xs">{lead.rating || 'N/A'}</span>
+                      <span className="text-[11px] text-gray-400">
                         ({lead.reviewCount !== null && lead.reviewCount !== undefined ? `${lead.reviewCount}` : '0'})
                       </span>
                     </div>
                   </td>
 
                   {/* Opportunity Signals */}
-                  <td className="py-3.5 px-5">
+                  <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {hasNoWebsite && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded">
-                          No Website
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                          No site
                         </span>
                       )}
                       {lead.rating && lead.rating < 4.0 && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 rounded">
-                          Low Rating
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-rose-50 text-rose-800 border border-rose-200 rounded">
+                          &lt;4.0 rating
                         </span>
                       )}
                       {lead.reviewCount !== undefined && lead.reviewCount < 15 && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded">
-                          Few Reviews
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-800 border border-purple-200 rounded">
+                          Few reviews
                         </span>
                       )}
                     </div>
                   </td>
 
                   {/* Lead Score Bar */}
-                  <td className="py-3.5 px-5">
-                    <div className="flex items-center gap-2.5 min-w-[100px]">
-                      <span className="font-extrabold text-xs text-slate-200 w-6 text-right">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2 min-w-[80px]">
+                      <span className="font-medium text-xs text-gray-900 w-5 text-right tabular-nums">
                         {lead.opportunityScore}
                       </span>
-                      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className={`h-full bg-gradient-to-r ${scoreColor} rounded-full transition-all duration-500`}
+                          className={`h-full ${scoreColor} rounded-full transition-all duration-300`}
                           style={{ width: `${lead.opportunityScore}%` }}
                         ></div>
                       </div>
@@ -311,59 +317,63 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                   </td>
 
                   {/* Status Dropdown */}
-                  <td className="py-3.5 px-5">
+                  <td className="py-3 px-4">
                     <select
                       value={lead.status}
                       onChange={(e) => onUpdateStatus(lead.id, e.target.value)}
-                      className="bg-slate-950 border border-white/10 text-slate-200 text-xs font-bold rounded-lg px-2.5 py-1 outline-none focus:border-blue-500 cursor-pointer"
+                      className="bg-white border border-gray-200 text-gray-700 text-xs font-medium rounded-lg px-2 py-1 outline-none focus:border-blue-500 cursor-pointer"
                     >
-                      <option value="NEW">NEW</option>
-                      <option value="CONTACTED">CONTACTED</option>
-                      <option value="IN_PROGRESS">IN PROGRESS</option>
-                      <option value="CLOSED">CLOSED</option>
+                      <option value="NEW">New</option>
+                      <option value="CONTACTED">Contacted</option>
+                      <option value="IN_PROGRESS">In progress</option>
+                      <option value="CLOSED">Closed</option>
                     </select>
                   </td>
 
                   {/* Action Buttons */}
-                  <td className="py-3.5 px-5 text-right">
+                  <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       {/* Automated Backend SMS Pitch */}
                       {lead.phone && (
                         <button
                           onClick={() => handleAutoSendSms(lead.id)}
-                          disabled={sendingSmsId === lead.id}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                          title="Automated Email-to-SMS via Backend SMTP"
+                          disabled={sendingSmsId === lead.id || lead.lineType === 'LANDLINE' || lead.lineType === 'VOIP' || lead.opportunityTags?.includes('LANDLINE_NUMBER')}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={
+                            lead.lineType === 'LANDLINE' || lead.lineType === 'VOIP' || lead.opportunityTags?.includes('LANDLINE_NUMBER')
+                              ? 'SMS disabled: landline number'
+                              : 'Dispatch automated SMS'
+                          }
                         >
                           {sendingSmsId === lead.id ? (
-                            <Loader2 size={12} className="animate-spin text-white" />
+                            <Loader2 size={11} className="animate-spin text-white" />
                           ) : (
-                            <Send size={12} />
+                            <Send size={11} />
                           )}
-                          <span>Auto SMS</span>
+                          <span>SMS</span>
                         </button>
                       )}
 
-                      {/* Manual Gmail SMS Mailto Link */}
+                      {/* Manual Gmail SMS */}
                       {lead.phone && (
                         <a
                           href={mailtoSmsUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all border border-white/10"
-                          title="Launch Gmail to Send Text via Email"
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-lg transition-colors border border-gray-200"
+                          title="Open mail client for SMS gateway"
                         >
-                          <Mail size={12} className="text-amber-400" />
-                          <span>Gmail SMS</span>
+                          <Mail size={11} className="text-gray-500" />
+                          <span>Gmail</span>
                         </a>
                       )}
 
-                      {/* Standard Pitch Button */}
+                      {/* Pitch Generator Button */}
                       <button
                         onClick={() => onOpenPitch(lead)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
                       >
-                        <Mail size={12} />
+                        <Mail size={11} />
                         <span>Pitch</span>
                       </button>
 
@@ -373,20 +383,20 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                           href={lead.googleMapsUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                           title="View on Google Maps"
                         >
-                          <ExternalLink size={14} />
+                          <ExternalLink size={13} />
                         </a>
                       )}
 
                       {/* Delete Lead */}
                       <button
                         onClick={() => onDeleteLead(lead.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                        title="Delete Lead"
+                        className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Delete lead"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </td>
@@ -398,20 +408,20 @@ export const LeadTable: React.FC<LeadTableProps> = ({
       </div>
 
       {/* Pagination Footer */}
-      <div className="bg-slate-950/80 border-t border-white/10 px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+      <div className="bg-gray-50/80 border-t border-gray-200 px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
         <div className="flex items-center gap-4">
           <span>
-            Showing <strong className="text-slate-200">{startItem}</strong> to{' '}
-            <strong className="text-slate-200">{endItem}</strong> of{' '}
-            <strong className="text-slate-200">{totalCount}</strong> leads
+            Showing <strong className="text-gray-900 font-medium">{startItem}</strong> to{' '}
+            <strong className="text-gray-900 font-medium">{endItem}</strong> of{' '}
+            <strong className="text-gray-900 font-medium">{totalCount}</strong> leads
           </span>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px]">Rows:</span>
+            <span>Rows:</span>
             <select
               value={limit}
               onChange={(e) => onLimitChange(Number(e.target.value))}
-              className="bg-slate-900 border border-white/10 text-slate-200 font-semibold rounded px-2 py-0.5 text-xs outline-none focus:border-blue-500 cursor-pointer"
+              className="bg-white border border-gray-200 text-gray-700 font-medium rounded px-2 py-0.5 text-xs outline-none focus:border-blue-500 cursor-pointer"
             >
               <option value={10}>10</option>
               <option value={15}>15</option>
@@ -425,21 +435,21 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:hover:bg-slate-800 transition-all"
+            className="p-1.5 rounded-lg bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 disabled:opacity-40 disabled:hover:bg-white transition-colors"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} />
           </button>
 
-          <span className="font-semibold text-slate-200 px-2">
+          <span className="font-medium text-gray-700 px-1">
             Page {page} of {totalPages}
           </span>
 
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:hover:bg-slate-800 transition-all"
+            className="p-1.5 rounded-lg bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 disabled:opacity-40 disabled:hover:bg-white transition-colors"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
         </div>
       </div>

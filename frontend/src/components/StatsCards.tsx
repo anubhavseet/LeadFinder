@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Globe, Star, Flame, Zap } from 'lucide-react';
+import { Users, Globe, Flame, Zap } from 'lucide-react';
 import { LeadStats } from '../types';
 
 interface StatsCardsProps {
@@ -9,40 +9,36 @@ interface StatsCardsProps {
 export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
   const cards = [
     {
-      title: 'Total Scraped Leads',
+      title: 'Total leads',
       value: stats.totalLeads,
-      desc: 'Local businesses stored in CRM database',
+      desc: 'Extracted businesses in CRM',
       icon: Users,
-      color: 'from-blue-500 to-indigo-600',
-      textColor: 'text-blue-400',
-      bgColor: 'bg-blue-500/10 border-blue-500/20',
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50 border-blue-100',
     },
     {
-      title: 'No Website Opportunity',
+      title: 'No website found',
       value: stats.noWebsiteCount,
-      desc: 'Prime targets for web dev freelancing pitch',
+      desc: 'Prime targets for web design outreach',
       icon: Globe,
-      color: 'from-amber-400 to-orange-500',
-      textColor: 'text-amber-400',
-      bgColor: 'bg-amber-500/10 border-amber-500/20',
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-100',
     },
     {
-      title: 'High Opportunity Score',
+      title: 'High priority',
       value: stats.highPriorityLeadsCount,
-      desc: 'Score ≥ 60 (high-conviction outreach targets)',
+      desc: 'Opportunity score ≥ 60',
       icon: Flame,
-      color: 'from-emerald-400 to-teal-500',
-      textColor: 'text-emerald-400',
-      bgColor: 'bg-emerald-500/10 border-emerald-500/20',
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-100',
     },
     {
-      title: 'Avg Opportunity Score',
+      title: 'Average score',
       value: `${stats.avgOpportunityScore || 0}/100`,
-      desc: `Low Rating: ${stats.lowRatingCount} | Low Reviews: ${stats.lowReviewsCount}`,
+      desc: `${stats.lowRatingCount} low ratings · ${stats.lowReviewsCount} few reviews`,
       icon: Zap,
-      color: 'from-purple-500 to-pink-600',
-      textColor: 'text-purple-400',
-      bgColor: 'bg-purple-500/10 border-purple-500/20',
+      iconColor: 'text-gray-700',
+      iconBg: 'bg-gray-100 border-gray-200',
     },
   ];
 
@@ -53,27 +49,24 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
         return (
           <div
             key={idx}
-            className="relative overflow-hidden p-5 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg transition-all hover:border-white/20 hover:-translate-y-0.5 group"
+            className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-gray-300 transition-colors"
           >
-            {/* Top Accent Line */}
-            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.color}`}></div>
-
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-medium text-gray-500">
                 {card.title}
               </span>
-              <div className={`p-2.5 rounded-xl border ${card.bgColor} ${card.textColor}`}>
-                <IconComponent size={18} />
+              <div className={`p-2 rounded-lg border ${card.iconBg} ${card.iconColor}`}>
+                <IconComponent size={16} />
               </div>
             </div>
 
             <div className="flex items-baseline gap-2">
-              <span className="font-display text-3xl font-extrabold text-white tracking-tight">
+              <span className="text-2xl font-semibold text-gray-950 tracking-tight">
                 {card.value}
               </span>
             </div>
 
-            <p className="mt-2 text-xs font-medium text-slate-500 group-hover:text-slate-400 transition-colors">
+            <p className="mt-1.5 text-xs text-gray-500">
               {card.desc}
             </p>
           </div>

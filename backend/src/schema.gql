@@ -10,12 +10,14 @@ scalar DateTime
 """Local business lead extracted from Google Maps"""
 type Lead {
   address: String
+  carrier: String
   category: String
   createdAt: DateTime!
   email: String
   emailSource: String
   googleMapsUrl: String
   id: ID!
+  lineType: String
   name: String!
   notes: String
   opportunityScore: Int!
@@ -72,6 +74,9 @@ type Mutation {
 
   """Update CRM lead status and notes"""
   updateLeadStatus(input: UpdateLeadStatusInput!): Lead!
+
+  """Audit and verify all database leads missing websites via OSINT"""
+  verifyDatabaseWebsites: SyncLeadsResult!
 }
 
 """Generated outreach pitch for a specific lead"""
@@ -128,7 +133,15 @@ enum SortOrder {
   DESC
 }
 
+input SyncFilterOptionsInput {
+  maxRating: String
+  maxReviews: String
+  mustHavePhone: Boolean
+  noWebsiteOnly: Boolean
+}
+
 input SyncLeadsInput {
+  filterOptions: SyncFilterOptionsInput
   leads: [ScrapedLeadInput!]!
 }
 

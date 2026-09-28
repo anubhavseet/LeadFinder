@@ -55,6 +55,52 @@ export class LeadsService {
     };
   }
 
+  /**
+   * OSINT Search to discover official website for a local business
+   */
+  async discoverOfficialWebsite(name: string, address?: string): Promise<string | null> {
+    const location = address ? address.replace(/[\d+#]+/g, '').trim() : '';
+    const query = `"${name}" ${location}`;
+    try {
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const res = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
+
+      if (!res.ok) return null;
+      const html = await res.text();
+
+      const urlMatches = html.match(/href="([^"]+)"/gi) || [];
+      const excludedDomains = [
+        'google.', 'facebook.', 'yelp.', 'yellowpages.', 'instagram.', 'mapquest.',
+        'tripadvisor.', 'bbb.org', 'linkedin.', 'twitter.', 'apple.com', 'nextdoor.',
+        'chamberofcommerce.', 'merchantcircle.', 'manta.', 'duckduckgo.', 'w3.org',
+        'youtube.', 'wikipedia.', 'groupon.', 'thumbtack.', 'angis.', 'houzz.'
+      ];
+
+      for (const m of urlMatches) {
+        const rawHref = m.replace(/^href="/i, '').replace(/"$/, '');
+        let target = rawHref;
+        if (target.includes('/url?q=')) {
+          const match = target.match(/[?&]q=([^&]+)/);
+          if (match && match[1]) target = decodeURIComponent(match[1]);
+        }
+
+        if (target.startsWith('http://') || target.startsWith('https://')) {
+          const lower = target.toLowerCase();
+          if (!excludedDomains.some((ex) => lower.includes(ex))) {
+            return target;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore OSINT search errors
+    }
+    return null;
+  }
+
   async syncScrapedLeads(input: SyncLeadsInput): Promise<SyncLeadsResult> {
     let addedCount = 0;
     let updatedCount = 0;
@@ -90,9 +136,39 @@ export class LeadsService {
         : { name: scrapedLead.name.trim() };
 
       const existingLead = await this.leadModel.findOne(queryFilter);
-
-      // Preserve existing website if incoming scrapedLead has null
       const finalWebsite = cleanWebsite || existingLead?.website || null;
+
+      // APPLY SELECTED FILTERS ON BACKEND SAVE
+      if (input.filterOptions) {
+        const filters = input.filterOptions;
+
+        // Filter 1: No Website Only -> If lead has a website, skip saving!
+        if (filters.noWebsiteOnly && finalWebsite && finalWebsite.trim() !== '') {
+          continue;
+        }
+
+        // Filter 2: Must Have Phone -> If missing phone, skip saving!
+        if (filters.mustHavePhone && (!scrapedLead.phone || scrapedLead.phone.trim() === '')) {
+          continue;
+        }
+
+        // Filter 3: Max Rating Cap
+        if (filters.maxRating && filters.maxRating !== 'any') {
+          const maxR = parseFloat(filters.maxRating);
+          if (scrapedLead.rating !== undefined && scrapedLead.rating !== null && scrapedLead.rating > maxR) {
+            continue;
+          }
+        }
+
+        // Filter 4: Max Reviews Cap
+        if (filters.maxReviews && filters.maxReviews !== 'any') {
+          const maxRev = parseInt(filters.maxReviews, 10);
+          if (scrapedLead.reviewCount !== undefined && scrapedLead.reviewCount !== null && scrapedLead.reviewCount > maxRev) {
+            continue;
+          }
+        }
+      }
+
       const finalLeadData: ScrapedLeadInput = {
         ...scrapedLead,
         website: finalWebsite || undefined,
@@ -131,6 +207,38 @@ export class LeadsService {
       updatedCount,
       totalProcessed: input.leads.length,
     };
+  }
+
+  /**
+   * Run verification scan across all stored leads missing websites
+   */
+  async verifyAndCleanDatabaseWebsites(): Promise<{ checked: number; updatedCount: number }> {
+    const noWebsiteLeads = await this.leadModel.find({
+      $or: [{ website: null }, { website: '' }],
+    }).exec();
+
+    let updatedCount = 0;
+
+    for (const lead of noWebsiteLeads) {
+      const discoveredWebsite = await this.discoverOfficialWebsite(lead.name, lead.address);
+      if (discoveredWebsite) {
+        lead.website = discoveredWebsite;
+        const { score, tags } = this.calculateOpportunityScore({
+          name: lead.name,
+          website: discoveredWebsite,
+          rating: lead.rating,
+          reviewCount: lead.reviewCount,
+          phone: lead.phone,
+          category: lead.category,
+        });
+        lead.opportunityScore = score;
+        lead.opportunityTags = tags;
+        await lead.save();
+        updatedCount++;
+      }
+    }
+
+    return { checked: noWebsiteLeads.length, updatedCount };
   }
 
   async findAll(filter?: LeadFilterInput, pagination?: PaginationInput) {

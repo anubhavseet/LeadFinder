@@ -70,6 +70,14 @@ export class Lead {
   @Prop({ required: false, default: '' })
   notes?: string;
 
+  @Field(() => String, { nullable: true })
+  @Prop({ required: false, default: null })
+  carrier?: string;
+
+  @Field(() => String, { nullable: true })
+  @Prop({ required: false, default: null })
+  lineType?: string;
+
   @Field(() => Date)
   createdAt: Date;
 

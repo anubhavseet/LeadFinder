@@ -38,6 +38,16 @@ export class LeadsResolver {
     return this.leadsService.syncScrapedLeads(input);
   }
 
+  @Mutation(() => SyncLeadsResult, { name: 'verifyDatabaseWebsites', description: 'Audit and verify all database leads missing websites via OSINT' })
+  async verifyDatabaseWebsites(): Promise<SyncLeadsResult> {
+    const res = await this.leadsService.verifyAndCleanDatabaseWebsites();
+    return {
+      addedCount: 0,
+      updatedCount: res.updatedCount,
+      totalProcessed: res.checked,
+    };
+  }
+
   @Mutation(() => Lead, { name: 'updateLeadStatus', description: 'Update CRM lead status and notes' })
   async updateLeadStatus(@Args('input') input: UpdateLeadStatusInput): Promise<Lead> {
     return this.leadsService.updateStatus(input);

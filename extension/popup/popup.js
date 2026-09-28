@@ -4,6 +4,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnOpenMaps = document.getElementById('btn-open-maps');
   const btnDashboard = document.getElementById('btn-dashboard');
   const selectMaxLeads = document.getElementById('max-leads');
+  const filterNoWebsite = document.getElementById('filter-no-website');
+  const filterMustPhone = document.getElementById('filter-must-phone');
+  const filterMaxRating = document.getElementById('filter-max-rating');
+  const filterMaxReviews = document.getElementById('filter-max-reviews');
   const statScraped = document.getElementById('stat-scraped');
   const serverStatus = document.getElementById('server-status');
   const tabStatusText = document.getElementById('tab-status-text');
@@ -22,6 +26,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       noticeBanner.className = 'notice-banner hidden';
     }
   }
+
+  // Load saved settings from chrome.storage.local
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(
+      ['maxLeads', 'noWebsiteOnly', 'mustHavePhone', 'maxRating', 'maxReviews'],
+      (items) => {
+        if (items.maxLeads) selectMaxLeads.value = items.maxLeads;
+        if (items.noWebsiteOnly !== undefined) filterNoWebsite.checked = items.noWebsiteOnly;
+        if (items.mustHavePhone !== undefined) filterMustPhone.checked = items.mustHavePhone;
+        if (items.maxRating) filterMaxRating.value = items.maxRating;
+        if (items.maxReviews) filterMaxReviews.value = items.maxReviews;
+      }
+    );
+  }
+
+  // Save settings helper
+  function saveSettings() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({
+        maxLeads: selectMaxLeads.value,
+        noWebsiteOnly: filterNoWebsite.checked,
+        mustHavePhone: filterMustPhone.checked,
+        maxRating: filterMaxRating.value,
+        maxReviews: filterMaxReviews.value,
+      });
+    }
+  }
+
+  // Bind change listeners to save state
+  selectMaxLeads.addEventListener('change', saveSettings);
+  filterNoWebsite.addEventListener('change', saveSettings);
+  filterMustPhone.addEventListener('change', saveSettings);
+  filterMaxRating.addEventListener('change', saveSettings);
+  filterMaxReviews.addEventListener('change', saveSettings);
 
   // Check NestJS Backend status
   async function checkBackend() {
@@ -60,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return tab;
   }
 
-  const activeTab = await detectCurrentTab();
+  await detectCurrentTab();
 
   // Open Google Maps button
   btnOpenMaps.addEventListener('click', async () => {
@@ -81,6 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Start Scraper button handler
   btnStart.addEventListener('click', async () => {
+    saveSettings();
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     // If not currently on Google Maps, automatically open/switch to Google Maps
@@ -91,14 +130,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         chrome.tabs.create({ url: 'https://www.google.com/maps' });
       }
-      showNotice('Switched to Google Maps! Search your target business query, then click Start.', false);
+      showNotice('Switched to Google Maps! Search your target query, then click Start.', false);
       setTimeout(() => window.close(), 1500);
       return;
     }
 
     const maxLeads = parseInt(selectMaxLeads.value, 10);
+    const filters = {
+      noWebsiteOnly: filterNoWebsite.checked,
+      mustHavePhone: filterMustPhone.checked,
+      maxRating: filterMaxRating.value,
+      maxReviews: filterMaxReviews.value,
+    };
 
-    // Try injecting content script if not already present
+    // Inject content script if not already present
     try {
       if (chrome.scripting) {
         await chrome.scripting.executeScript({
@@ -118,6 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.sendMessage(tab.id, {
       action: 'START_SCRAPING',
       maxLeads: maxLeads,
+      filters: filters,
     }, (response) => {
       if (chrome.runtime.lastError) {
         showNotice('Reloading Google Maps page to initialize extension overlay...', true);

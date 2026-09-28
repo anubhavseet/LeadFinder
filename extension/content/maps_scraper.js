@@ -12,13 +12,33 @@
   let isScraping = false;
   let isPaused = false;
   let scrapedLeadsMap = new Map(); // Key: name + address
-  let maxLeadsTarget = 50;
-  let currentQuery = '';
+  let maxLeadsTarget = 100;
+
+  // Active Pre-Scrape Quality Filters
+  let activeFilters = {
+    noWebsiteOnly: false,
+    mustHavePhone: false,
+    maxRating: 'any',
+    maxReviews: 'any',
+  };
+
   let overlayEl = null;
 
   // Configuration for Human Emulation
-  const MIN_DELAY_MS = 2000;
-  const MAX_DELAY_MS = 4500;
+  const MIN_DELAY_MS = 1800;
+  const MAX_DELAY_MS = 3800;
+
+  // Load persistent settings from storage if available
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['maxLeads', 'noWebsiteOnly', 'mustHavePhone', 'maxRating', 'maxReviews'], (items) => {
+      if (items.maxLeads) maxLeadsTarget = parseInt(items.maxLeads, 10);
+      if (items.noWebsiteOnly !== undefined) activeFilters.noWebsiteOnly = !!items.noWebsiteOnly;
+      if (items.mustHavePhone !== undefined) activeFilters.mustHavePhone = !!items.mustHavePhone;
+      if (items.maxRating) activeFilters.maxRating = items.maxRating;
+      if (items.maxReviews) activeFilters.maxReviews = items.maxReviews;
+      updateOverlayUIState();
+    });
+  }
 
   // Initialize UI Overlay
   function createOverlayUI() {
@@ -37,20 +57,29 @@
           <span id="lf-status-badge">READY</span>
         </div>
       </div>
+
       <div class="lf-stats-grid">
         <div class="lf-stat-box">
           <div class="lf-stat-val" id="lf-total-count">0</div>
-          <div class="lf-stat-lbl">Leads Found</div>
+          <div class="lf-stat-lbl">Target Leads</div>
         </div>
         <div class="lf-stat-box">
           <div class="lf-stat-val gold" id="lf-noweb-count">0</div>
           <div class="lf-stat-lbl">No Website ⭐</div>
         </div>
       </div>
-      <div class="lf-status-line" id="lf-status-msg">Click 'Start Scraping' to begin human-emulated crawl</div>
+
+      <!-- Quick Filter Bar on Overlay -->
+      <div class="lf-filters-panel">
+        <div class="lf-filter-badge" id="lf-badge-noweb">🌐 No Web: OFF</div>
+        <div class="lf-filter-badge" id="lf-badge-phone">📞 Phone: OFF</div>
+        <div class="lf-filter-badge" id="lf-badge-cap">Cap: ${maxLeadsTarget}</div>
+      </div>
+
+      <div class="lf-status-line" id="lf-status-msg">Click 'Start Scraping' to begin crawl</div>
       <div class="lf-actions">
         <button class="lf-btn lf-btn-primary" id="lf-btn-toggle">Start Scraping</button>
-        <button class="lf-btn lf-btn-danger" id="lf-btn-sync">Sync Backend</button>
+        <button class="lf-btn lf-btn-secondary" id="lf-btn-sync">Sync Backend</button>
       </div>
     `;
 
@@ -58,6 +87,25 @@
 
     document.getElementById('lf-btn-toggle').addEventListener('click', toggleScraping);
     document.getElementById('lf-btn-sync').addEventListener('click', syncLeadsToBackend);
+
+    updateOverlayUIState();
+  }
+
+  function updateOverlayUIState() {
+    if (!overlayEl) return;
+    const badgeCap = document.getElementById('lf-badge-cap');
+    const badgeNoWeb = document.getElementById('lf-badge-noweb');
+    const badgePhone = document.getElementById('lf-badge-phone');
+
+    if (badgeCap) badgeCap.innerText = `Cap: ${maxLeadsTarget}`;
+    if (badgeNoWeb) {
+      badgeNoWeb.innerText = `🌐 No Web: ${activeFilters.noWebsiteOnly ? 'ON' : 'OFF'}`;
+      badgeNoWeb.className = `lf-filter-badge ${activeFilters.noWebsiteOnly ? 'active' : ''}`;
+    }
+    if (badgePhone) {
+      badgePhone.innerText = `📞 Phone: ${activeFilters.mustHavePhone ? 'ON' : 'OFF'}`;
+      badgePhone.className = `lf-filter-badge ${activeFilters.mustHavePhone ? 'active' : ''}`;
+    }
   }
 
   function updateOverlayStats() {
@@ -90,7 +138,7 @@
     return 'Google Maps Query';
   }
 
-  // Find Google Maps Feed Container (and resolve the true scrollable element)
+  // Find Google Maps Feed Container (and resolve true scrollable element)
   function getFeedContainer() {
     const candidates = [
       'div[role="feed"]',
@@ -118,50 +166,103 @@
     return document.querySelector('div[role="feed"]') || document.querySelector('div[aria-label*="Results"]') || document.querySelector('.m6QErb.DshB1');
   }
 
+  // Helper to sanitize & validate external website URLs
+  function cleanAndDecodeUrl(href) {
+    if (!href) return null;
+    let target = href.trim();
+
+    // Decode Google redirect URL (/url?q=https://...)
+    if (target.includes('google.com/url?') || target.includes('google.com/url') || target.includes('/url?q=')) {
+      try {
+        const urlObj = new URL(target.startsWith('http') ? target : 'https://www.google.com' + target);
+        const q = urlObj.searchParams.get('q');
+        if (q) target = q;
+      } catch (e) {
+        const match = target.match(/[?&]q=([^&]+)/);
+        if (match && match[1]) target = decodeURIComponent(match[1]);
+      }
+    }
+
+    if (!target) return null;
+
+    // Relative links or non-http links
+    if (!target.startsWith('http://') && !target.startsWith('https://')) {
+      if (/^(www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/i.test(target)) {
+        target = `https://${target}`;
+      } else {
+        return null;
+      }
+    }
+
+    const lower = target.toLowerCase();
+    // Exclude internal Google/Map/Search/Ad links
+    if (
+      lower.includes('google.com') ||
+      lower.includes('googleadservices.com') ||
+      lower.includes('gstatic.com') ||
+      lower.includes('ggpht.com') ||
+      lower.includes('schema.org') ||
+      lower.includes('waze.com')
+    ) {
+      return null;
+    }
+
+    return target;
+  }
+
   // Helper to extract and decode website URLs from Google Maps card elements
   function extractWebsiteUrl(card) {
+    if (!card) return null;
+
+    // 1. High-priority Google Maps website button selectors
     const websiteSelectors = [
-      'a[data-value="Website"]',
       'a[aria-label*="Website"]',
       'a[aria-label*="website"]',
+      'a[aria-label*="Site"]',
+      'a[aria-label*="site"]',
+      'a[data-value="Website"]',
+      'a[data-value="website"]',
       'a[data-tooltip*="Website"]',
+      'a[data-tooltip*="website"]',
       'a.lCanBc',
-      'a[href*="url?q="]',
-      'a[href*="http"]'
+      'a.authority',
+      'a[data-value*="website"]'
     ];
 
     for (const sel of websiteSelectors) {
       const btns = card.querySelectorAll(sel);
       for (const btn of btns) {
-        let href = btn.getAttribute('href');
-        if (!href) continue;
-
-        // Decode google redirect URL if present
-        if (href.includes('google.com/url?') || href.includes('google.com/url')) {
-          try {
-            const urlObj = new URL(href.startsWith('http') ? href : 'https://www.google.com' + href);
-            const targetQ = urlObj.searchParams.get('q');
-            if (targetQ && !targetQ.includes('google.com/maps') && !targetQ.includes('google.com/search')) {
-              return targetQ;
-            }
-          } catch (e) {
-            const match = href.match(/[?&]q=([^&]+)/);
-            if (match && match[1]) {
-              const decoded = decodeURIComponent(match[1]);
-              if (!decoded.includes('google.com/maps') && !decoded.includes('google.com/search')) {
-                return decoded;
-              }
-            }
-          }
-        } else if (href.startsWith('http') && !href.includes('google.com/maps') && !href.includes('google.com/search')) {
-          return href;
-        }
+        const href = btn.getAttribute('href') || btn.getAttribute('data-url');
+        const decoded = cleanAndDecodeUrl(href);
+        if (decoded) return decoded;
       }
     }
+
+    // 2. Fallback: Check ALL anchor tags inside card for valid external URLs
+    const allAnchors = card.querySelectorAll('a[href]');
+    for (const a of allAnchors) {
+      const href = a.getAttribute('href');
+      const decoded = cleanAndDecodeUrl(href);
+      if (decoded) return decoded;
+    }
+
+    // 3. Fallback: Search card text for website domain text (e.g., example.com)
+    const cardText = card.innerText || '';
+    const lines = cardText.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const domainMatch = trimmed.match(/\b(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)\b/i);
+      if (domainMatch && domainMatch[0]) {
+        const candidate = domainMatch[0].trim();
+        const decoded = cleanAndDecodeUrl(candidate.startsWith('http') ? candidate : `https://${candidate}`);
+        if (decoded) return decoded;
+      }
+    }
+
     return null;
   }
 
-  // Extract visible business items from current DOM
+  // Extract visible business items from current DOM with Pre-Scrape Filters
   function parseVisibleCards() {
     const currentQuery = detectSearchQuery();
     const cardElements = document.querySelectorAll('div.Nv2PK, div[role="article"]');
@@ -224,7 +325,7 @@
           }
         });
 
-        // Robust Website link extraction & decoding
+        // Website link extraction & decoding
         const website = extractWebsiteUrl(card);
 
         // Google Maps Link
@@ -237,6 +338,7 @@
           }
         }
 
+        // Add to extracted leads map
         const uniqueKey = `${name}_${address || ''}_${phone || ''}`.toLowerCase();
         const existingLead = scrapedLeadsMap.get(uniqueKey);
 
@@ -254,7 +356,7 @@
           });
           newlyExtracted++;
         } else {
-          // Enrich existing lead if new info (such as website or phone) was extracted on scroll pass
+          // Enrich existing lead if new info was extracted on scroll pass
           if (!existingLead.website && website) existingLead.website = website;
           if (!existingLead.phone && phone) existingLead.phone = phone;
           if (!existingLead.category && category) existingLead.category = category;
@@ -270,7 +372,7 @@
     return newlyExtracted;
   }
 
-  // Stealth Human-Emulated Auto-Scroll Engine
+  // Stealth Human-Emulated Auto-Scroll Engine (Unlimited / Deep Scroll Fix)
   async function runStealthScrollLoop() {
     const feed = getFeedContainer();
     if (!feed) {
@@ -290,7 +392,7 @@
       }
 
       // Parse current visible items
-      const newlyFound = parseVisibleCards();
+      parseVisibleCards();
 
       if (scrapedLeadsMap.size === lastSize) {
         noNewLeadsCount++;
@@ -309,23 +411,18 @@
         break;
       }
 
-      if (noNewLeadsCount > 10) {
+      // Increased tolerance for slow Google Maps lazy loads
+      if (noNewLeadsCount > 25) {
         setStatusMsg('No new results found after repeated scrolling. Ending crawl...', false);
         break;
       }
 
-      // Multi-strategy auto-scroll step to guarantee movement on all Google Maps versions
-      const scrollStep = Math.floor(350 + Math.random() * 350);
+      // --- MULTI-STRATEGY DEEP SCROLL TO GUARANTEE CONTINUOUS LAZY-LOADING ---
+      
+      // Strategy 1: Scroll to bottom of container
+      feed.scrollTop = feed.scrollHeight;
 
-      // Strategy 1: Container scrollTop adjustment
-      feed.scrollTop += scrollStep;
-
-      // Strategy 2: Smooth scrollBy API
-      if (typeof feed.scrollBy === 'function') {
-        feed.scrollBy({ top: scrollStep, behavior: 'smooth' });
-      }
-
-      // Strategy 3: Scroll last visible card into view (forces Google Maps lazy load triggers)
+      // Strategy 2: Scroll last card element into view
       const cardElements = document.querySelectorAll('div.Nv2PK, div[role="article"]');
       if (cardElements.length > 0) {
         const lastCard = cardElements[cardElements.length - 1];
@@ -334,13 +431,20 @@
         }
       }
 
-      // Strategy 4: Dispatch native scroll events
+      // Strategy 3: If stuck, bump scroll position up and down to trigger Google Maps lazy-load event listener
+      if (noNewLeadsCount > 3) {
+        feed.scrollTop = Math.max(0, feed.scrollTop - 400);
+        await new Promise(r => setTimeout(r, 400));
+        feed.scrollTop = feed.scrollHeight;
+      }
+
+      // Strategy 4: Dispatch scroll events
       feed.dispatchEvent(new Event('scroll', { bubbles: true }));
       window.dispatchEvent(new Event('scroll', { bubbles: true }));
 
-      // Random delay between scrolls (2.0s - 4.5s) to avoid bot detection
+      // Random delay between scrolls (1.8s - 3.8s) to avoid bot detection
       const randomDelay = Math.floor(MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS));
-      setStatusMsg(`Human micro-scroll step (${scrapedLeadsMap.size}/${maxLeadsTarget} leads)... (${(randomDelay / 1000).toFixed(1)}s delay)`);
+      setStatusMsg(`Human micro-scroll (${scrapedLeadsMap.size}/${maxLeadsTarget} leads)... (${(randomDelay / 1000).toFixed(1)}s delay)`);
       
       await new Promise(resolve => setTimeout(resolve, randomDelay));
     }
@@ -388,7 +492,7 @@
       return;
     }
 
-    setStatusMsg('Syncing leads to NestJS GraphQL Backend...');
+    setStatusMsg('Syncing filtered leads to NestJS GraphQL Backend...');
 
     const graphqlQuery = {
       query: `
@@ -403,6 +507,12 @@
       variables: {
         input: {
           leads: leadsArray,
+          filterOptions: {
+            noWebsiteOnly: activeFilters.noWebsiteOnly,
+            mustHavePhone: activeFilters.mustHavePhone,
+            maxRating: activeFilters.maxRating,
+            maxReviews: activeFilters.maxReviews,
+          },
         },
       },
     };
@@ -438,6 +548,10 @@
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === 'START_SCRAPING') {
         if (request.maxLeads) maxLeadsTarget = request.maxLeads;
+        if (request.filters) {
+          activeFilters = { ...activeFilters, ...request.filters };
+        }
+        updateOverlayUIState();
         if (!isScraping) toggleScraping();
         sendResponse({ status: 'STARTED' });
       } else if (request.action === 'STOP_SCRAPING') {

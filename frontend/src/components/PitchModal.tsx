@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Sparkles, Send, Globe, Mail } from 'lucide-react';
+import { X, Copy, Check, Sparkles, Send } from 'lucide-react';
 import { Lead, OutreachPitch } from '../types';
 import { generateOutreachPitch } from '../api/graphqlClient';
 
@@ -21,7 +21,7 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
     setSendingSms(true);
     try {
       await onSendSmsPitch(lead.id);
-      alert(`Automated SMS pitch dispatched to carrier gateways for ${lead.name}!`);
+      alert(`Automated SMS pitch dispatched to carrier gateways for ${lead.name}`);
     } catch (err) {
       alert(`Error sending SMS: ${err}`);
     } finally {
@@ -41,17 +41,17 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
         leadId: lead.id,
         businessName: lead.name,
         serviceType: type,
-        subject: `Quick Website & Digital Opportunity for ${lead.name}`,
-        body: `Hi ${lead.name} Team,\n\nI was looking up top local businesses in ${
+        subject: `Website opportunity for ${lead.name}`,
+        body: `Hi ${lead.name} team,\n\nI was looking up top local businesses in ${
           lead.address || 'your area'
-        } and noticed your Google listing.\n\n` +
-        `I specialize in high-converting modern website design and local SEO automation. ${
-          !lead.website ? 'Having a custom responsive website could instantly double your inbound calls and customer inquiries.' : 'Updating your site speed and review system can significantly boost your Google Maps ranking.'
-        }\n\nWould you be open to a quick 5-minute chat or demo video on how we can implement this?\n\nBest regards,\nFreelance Lead Intelligence Team`,
+        } and came across your Google listing.\n\n` +
+        `I specialize in clean, high-performing websites and local SEO for businesses in your field. ${
+          !lead.website ? 'Having a dedicated responsive website could significantly increase your direct customer calls and search visibility.' : 'Improving your mobile page speed and local review capture can boost your Google Maps ranking.'
+        }\n\nWould you be open to a 5-minute chat or brief walkthrough on how to set this up?\n\nBest regards,\nFreelance Lead Intelligence Team`,
         keyHighlights: [
-          'No responsive website found',
-          'Mobile optimization opportunity',
-          'Google Review auto-responder pitch',
+          'No website detected',
+          'Mobile presence opportunity',
+          'Local search visibility',
         ],
       });
     } finally {
@@ -72,27 +72,27 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-2xl bg-slate-900 border border-blue-500/30 rounded-2xl shadow-2xl shadow-blue-500/10 p-6 flex flex-col gap-5 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-2xl shadow-xl p-6 flex flex-col gap-5 overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl">
-              <Sparkles size={20} />
+            <div className="p-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-lg">
+              <Sparkles size={18} />
             </div>
             <div>
-              <h2 className="font-display text-xl font-extrabold text-white">
-                Outreach Pitch Generator
+              <h2 className="text-base font-semibold text-gray-950">
+                Outreach pitch generator
               </h2>
-              <p className="text-xs text-slate-400">
-                Tailored pitch for <span className="text-blue-400 font-semibold">{lead.name}</span>
+              <p className="text-xs text-gray-500">
+                Tailored outreach for <span className="font-medium text-gray-900">{lead.name}</span>
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all"
+            className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded-lg transition-colors"
           >
             <X size={18} />
           </button>
@@ -100,15 +100,15 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
 
         {/* Pitch Service Type Selector */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400">Pitch Angle:</span>
+          <span className="text-xs font-medium text-gray-500">Angle:</span>
           {['Web Development', 'SEO & Reputation', 'Review Automation'].map((type) => (
             <button
               key={type}
               onClick={() => setServiceType(type)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 serviceType === type
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
-                  : 'bg-slate-800 text-slate-400 border-white/10 hover:bg-slate-700 hover:text-slate-200'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
             >
               {type}
@@ -118,45 +118,45 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
 
         {/* Pitch Content Box */}
         {loading ? (
-          <div className="p-12 text-center bg-slate-950/80 border border-white/10 rounded-xl text-slate-400 text-sm animate-pulse">
-            Generating tailored outreach pitch...
+          <div className="p-12 text-center bg-gray-50 border border-gray-200 rounded-xl text-gray-500 text-xs animate-pulse">
+            Generating outreach pitch...
           </div>
         ) : pitch ? (
           <div className="flex flex-col gap-3">
             {/* Subject Line */}
-            <div className="p-3 bg-slate-950/80 border border-white/10 rounded-xl text-xs text-slate-200 flex items-center justify-between gap-2">
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 flex items-center justify-between gap-2">
               <div>
-                <span className="font-bold text-slate-400">Subject: </span>
-                <span className="font-medium text-white">{pitch.subject}</span>
+                <span className="font-medium text-gray-500">Subject: </span>
+                <span className="font-semibold text-gray-950">{pitch.subject}</span>
               </div>
               {lead.email && (
                 <a
                   href={`mailto:${lead.email}?subject=${encodeURIComponent(pitch.subject)}&body=${encodeURIComponent(pitch.body)}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shrink-0 shadow-md shadow-emerald-600/30"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded text-xs transition-colors shrink-0"
                 >
-                  <Send size={12} />
-                  Send to {lead.email}
+                  <Send size={11} />
+                  <span>Send to email</span>
                 </a>
               )}
             </div>
 
             {/* Email Body */}
-            <div className="p-4 bg-slate-950/90 border border-white/10 rounded-xl font-mono text-xs text-slate-200 leading-relaxed whitespace-pre-wrap max-h-[260px] overflow-y-auto">
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg font-mono text-xs text-gray-800 leading-relaxed whitespace-pre-wrap max-h-[240px] overflow-y-auto">
               {pitch.body}
             </div>
 
             {/* Key Pitch Highlights */}
             {pitch.keyHighlights && pitch.keyHighlights.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Target Signals:
+                <span className="text-[11px] font-medium text-gray-500">
+                  Opportunity signals:
                 </span>
                 {pitch.keyHighlights.map((h, i) => (
                   <span
                     key={i}
-                    className="px-2 py-0.5 text-[10px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-md"
+                    className="px-2 py-0.5 text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200 rounded"
                   >
                     {h}
                   </span>
@@ -167,26 +167,37 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
         ) : null}
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between border-t border-white/10 pt-4 mt-1">
-          <span className="text-xs text-slate-400">
-            Copy pitch to send via Email or LinkedIn
+        <div className="flex items-center justify-between border-t border-gray-100 pt-4 mt-1">
+          <span className="text-xs text-gray-500">
+            Copy pitch for direct email or LinkedIn message
           </span>
 
           <div className="flex items-center gap-2">
             {lead.phone && onSendSmsPitch && (
               <button
                 onClick={handleAutoSendSms}
-                disabled={sendingSms}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/30 disabled:opacity-50"
+                disabled={sendingSms || lead.lineType === 'LANDLINE' || lead.lineType === 'VOIP' || lead.opportunityTags?.includes('LANDLINE_NUMBER')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={
+                  lead.lineType === 'LANDLINE' || lead.lineType === 'VOIP' || lead.opportunityTags?.includes('LANDLINE_NUMBER')
+                    ? 'SMS disabled: phone number is a landline'
+                    : 'Dispatch automated SMS'
+                }
               >
-                <Send size={14} />
-                <span>{sendingSms ? 'Sending SMS...' : 'Auto-Send SMS'}</span>
+                <Send size={13} />
+                <span>
+                  {sendingSms
+                    ? 'Sending SMS...'
+                    : lead.lineType === 'LANDLINE' || lead.lineType === 'VOIP' || lead.opportunityTags?.includes('LANDLINE_NUMBER')
+                    ? 'Landline'
+                    : 'Send SMS'}
+                </span>
               </button>
             )}
 
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-white/10 transition-all"
+              className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-lg border border-gray-200 transition-colors"
             >
               Close
             </button>
@@ -194,10 +205,10 @@ export const PitchModal: React.FC<PitchModalProps> = ({ lead, onClose, onSendSms
             <button
               onClick={handleCopy}
               disabled={!pitch || loading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-600/30 active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
             >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              <span>{copied ? 'Copied to Clipboard!' : 'Copy Pitch'}</span>
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              <span>{copied ? 'Copied' : 'Copy pitch'}</span>
             </button>
           </div>
         </div>

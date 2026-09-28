@@ -37,21 +37,21 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 p-4 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg">
+    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
       {/* Search Input */}
       <div className="relative flex-1 min-w-[260px]">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
           type="text"
           placeholder="Search by business name, category, or location..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-white/10 focus:border-blue-500/80 focus:ring-2 focus:ring-blue-500/20 rounded-xl text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
+          className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 rounded-lg text-xs text-gray-900 placeholder-gray-400 outline-none transition-colors"
         />
         {search && (
           <button
             onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600 px-1"
           >
             ✕
           </button>
@@ -63,40 +63,40 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
         {/* No Website Toggle */}
         <button
           onClick={() => setNoWebsiteOnly(!noWebsiteOnly)}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
             noWebsiteOnly
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/20'
-              : 'bg-slate-800/60 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-slate-200'
+              ? 'bg-amber-50 text-amber-800 border-amber-200 font-semibold'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
           }`}
         >
-          <Globe size={14} className={noWebsiteOnly ? 'text-amber-400' : 'text-slate-400'} />
-          <span>No Website ⭐</span>
+          <Globe size={13} className={noWebsiteOnly ? 'text-amber-600' : 'text-gray-400'} />
+          <span>No website</span>
         </button>
 
         {/* Low Rating Toggle */}
         <button
           onClick={() => setLowRatingOnly(!lowRatingOnly)}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
             lowRatingOnly
-              ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-sm shadow-rose-500/20'
-              : 'bg-slate-800/60 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-slate-200'
+              ? 'bg-rose-50 text-rose-800 border-rose-200 font-semibold'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
           }`}
         >
-          <Star size={14} className={lowRatingOnly ? 'text-rose-400' : 'text-slate-400'} />
-          <span>Low Rating (&lt;4.0)</span>
+          <Star size={13} className={lowRatingOnly ? 'text-rose-600' : 'text-gray-400'} />
+          <span>Low rating (&lt;4.0)</span>
         </button>
 
         {/* High Score Toggle */}
         <button
           onClick={() => setHighScoreOnly(!highScoreOnly)}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
             highScoreOnly
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/20'
-              : 'bg-slate-800/60 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-slate-200'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
           }`}
         >
-          <Flame size={14} className={highScoreOnly ? 'text-emerald-400' : 'text-slate-400'} />
-          <span>High Score (≥60)</span>
+          <Flame size={13} className={highScoreOnly ? 'text-emerald-600' : 'text-gray-400'} />
+          <span>High priority (≥60)</span>
         </button>
 
         {/* CRM Status Dropdown */}
@@ -104,25 +104,25 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="appearance-none bg-slate-950/80 border border-white/10 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 pr-8 outline-none focus:border-blue-500 transition-all cursor-pointer"
+            className="appearance-none bg-white border border-gray-200 text-gray-800 text-xs font-medium rounded-lg px-3 py-1.5 pr-8 outline-none focus:border-blue-500 cursor-pointer transition-colors"
           >
-            <option value="">Status: ALL</option>
-            <option value="NEW">Status: NEW</option>
-            <option value="CONTACTED">Status: CONTACTED</option>
-            <option value="IN_PROGRESS">Status: IN PROGRESS</option>
-            <option value="CLOSED">Status: CLOSED</option>
+            <option value="">Status: All</option>
+            <option value="NEW">Status: New</option>
+            <option value="CONTACTED">Status: Contacted</option>
+            <option value="IN_PROGRESS">Status: In progress</option>
+            <option value="CLOSED">Status: Closed</option>
           </select>
-          <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <Filter size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
 
         {/* Reset Filters */}
         {isAnyFilterActive && (
           <button
             onClick={handleResetFilters}
-            className="inline-flex items-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-white/10 transition-all"
-            title="Reset Filters"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 transition-colors"
+            title="Reset filters"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
             <span>Reset</span>
           </button>
         )}

@@ -15,6 +15,8 @@ export interface Lead {
   searchQuery?: string;
   status: 'NEW' | 'CONTACTED' | 'IN_PROGRESS' | 'CLOSED';
   notes?: string;
+  carrier?: string;
+  lineType?: 'MOBILE' | 'LANDLINE' | 'VOIP' | 'UNKNOWN';
   createdAt: string;
 }
 

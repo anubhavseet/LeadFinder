@@ -88,7 +88,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .lf-stat-box {
@@ -115,6 +115,29 @@
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.lf-filters-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.lf-filter-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(30, 41, 59, 0.8);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.lf-filter-badge.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
 .lf-status-line {
@@ -160,6 +183,17 @@
   background: linear-gradient(135deg, #1d4ed8, #2563eb);
 }
 
+.lf-btn-secondary {
+  background: #1e293b;
+  color: #cbd5e1;
+  border: 1px solid #334155;
+}
+
+.lf-btn-secondary:hover {
+  background: #334155;
+  color: white;
+}
+
 .lf-btn-danger {
   background: rgba(239, 68, 68, 0.2);
   color: #f87171;
@@ -168,13 +202,4 @@
 
 .lf-btn-danger:hover {
   background: rgba(239, 68, 68, 0.3);
-}
-
-.lf-toggle-btn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 4px;
 }

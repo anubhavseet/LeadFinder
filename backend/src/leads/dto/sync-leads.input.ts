@@ -55,12 +55,36 @@ export class ScrapedLeadInput {
 }
 
 @InputType()
+export class SyncFilterOptionsInput {
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  noWebsiteOnly?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  mustHavePhone?: boolean;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  maxRating?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  maxReviews?: string;
+}
+
+@InputType()
 export class SyncLeadsInput {
   @Field(() => [ScrapedLeadInput])
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ScrapedLeadInput)
   leads: ScrapedLeadInput[];
+
+  @Field(() => SyncFilterOptionsInput, { nullable: true })
+  @IsOptional()
+  @Type(() => SyncFilterOptionsInput)
+  filterOptions?: SyncFilterOptionsInput;
 }
 
 @InputType()

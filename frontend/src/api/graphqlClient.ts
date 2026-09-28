@@ -92,6 +92,8 @@ export async function getLeads(
           searchQuery
           status
           notes
+          carrier
+          lineType
           createdAt
         }
         totalCount

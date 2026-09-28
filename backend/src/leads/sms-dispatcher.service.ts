@@ -4,6 +4,13 @@ import { Model } from 'mongoose';
 import * as nodemailer from 'nodemailer';
 import { Lead, LeadDocument } from './models/lead.model';
 
+export interface CarrierLookupResult {
+  carrier: string;
+  lineType: 'MOBILE' | 'LANDLINE' | 'VOIP' | 'UNKNOWN';
+  isSmsEligible: boolean;
+  gatewayEmail?: string;
+}
+
 @Injectable()
 export class SmsDispatcherService {
   private readonly logger = new Logger(SmsDispatcherService.name);
@@ -51,11 +58,14 @@ export class SmsDispatcherService {
   }
 
   /**
-   * High-Precision US Carrier & Gateway Lookup using LERG NPA-NXX Prefix Database + OSINT
+   * High-Precision US Carrier & Line-Type (Mobile vs Landline vs VoIP) Lookup
+   * using LERG NPA-NXX Prefix Database + OSINT
    */
-  public async detectCarrierAndGateway(phone: string): Promise<{ carrier: string; gatewayEmail: string } | null> {
+  public async detectCarrierAndLineType(phone: string): Promise<CarrierLookupResult> {
     const cleanDigits = this.sanitizeUSPhone(phone);
-    if (cleanDigits.length !== 10) return null;
+    if (cleanDigits.length !== 10) {
+      return { carrier: 'Unknown', lineType: 'UNKNOWN', isSmsEligible: false };
+    }
 
     const npa = cleanDigits.substring(0, 3);
     const nxx = cleanDigits.substring(3, 6);
@@ -70,27 +80,76 @@ export class SmsDispatcherService {
       if (res.ok) {
         const xmlText = await res.text();
         const companyMatch = xmlText.match(/<company-name>(.*?)<\/company-name>/i);
-        if (companyMatch && companyMatch[1]) {
-          const comp = companyMatch[1].toUpperCase();
+        const typeMatch = xmlText.match(/<company-type>(.*?)<\/company-type>/i);
 
-          if (comp.includes('CINGULAR') || comp.includes('AT&T') || comp.includes('AT & T') || comp.includes('SBC') || comp.includes('BELLSOUTH')) {
-            return { carrier: 'AT&T Mobility', gatewayEmail: `${cleanDigits}@txt.att.net` };
-          }
-          if (comp.includes('CELLCO') || comp.includes('VERIZON') || comp.includes('VZW')) {
-            return { carrier: 'Verizon Wireless', gatewayEmail: `${cleanDigits}@vtext.com` };
-          }
-          if (comp.includes('T-MOBILE') || comp.includes('TMOBILE') || comp.includes('SPRINT') || comp.includes('POWERTEL') || comp.includes('NEXTEL')) {
-            return { carrier: 'T-Mobile USA', gatewayEmail: `${cleanDigits}@tmomail.net` };
-          }
-          if (comp.includes('CRICKET')) {
-            return { carrier: 'Cricket Wireless', gatewayEmail: `${cleanDigits}@mms.cricketwireless.net` };
-          }
-          if (comp.includes('METRO')) {
-            return { carrier: 'MetroPCS', gatewayEmail: `${cleanDigits}@mymetropcs.com` };
-          }
-          if (comp.includes('US CELLULAR') || comp.includes('UNITED STATES CELLULAR')) {
-            return { carrier: 'US Cellular', gatewayEmail: `${cleanDigits}@email.uscc.net` };
-          }
+        const compType = typeMatch ? typeMatch[1].toUpperCase() : '';
+        const comp = companyMatch && companyMatch[1] ? companyMatch[1].toUpperCase() : '';
+
+        // Check Wireless Mobile Carriers
+        if (comp.includes('CELLCO') || comp.includes('VERIZON WIRELESS') || comp.includes('VZW')) {
+          return { carrier: 'Verizon Wireless', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@vtext.com` };
+        }
+        if (comp.includes('AT&T MOBILITY') || comp.includes('CINGULAR') || comp.includes('NEW CINGULAR')) {
+          return { carrier: 'AT&T Mobility', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@txt.att.net` };
+        }
+        if (comp.includes('T-MOBILE') || comp.includes('TMOBILE') || comp.includes('SPRINT') || comp.includes('POWERTEL') || comp.includes('NEXTEL')) {
+          return { carrier: 'T-Mobile USA', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@tmomail.net` };
+        }
+        if (comp.includes('CRICKET') || comp.includes('LEAP WIRELESS')) {
+          return { carrier: 'Cricket Wireless', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@mms.cricketwireless.net` };
+        }
+        if (comp.includes('METROPCS') || comp.includes('METRO PCS') || comp.includes('METRO')) {
+          return { carrier: 'MetroPCS', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@mymetropcs.com` };
+        }
+        if (comp.includes('US CELLULAR') || comp.includes('UNITED STATES CELLULAR')) {
+          return { carrier: 'US Cellular', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@email.uscc.net` };
+        }
+        if (comp.includes('DISH WIRELESS') || comp.includes('BOOST')) {
+          return { carrier: 'Boost / Dish Wireless', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@myboostmobile.com` };
+        }
+
+        // Check LERG company type 'W' (Wireless)
+        if (compType === 'W') {
+          return { carrier: comp || 'Wireless Mobile Carrier', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@vtext.com` };
+        }
+
+        // Check Known Landline ILECs (Wireline Telcos)
+        if (
+          comp.includes('PACIFIC BELL') || comp.includes('SOUTHWESTERN BELL') || comp.includes('SOUTHERN BELL') ||
+          comp.includes('BELLSOUTH') || comp.includes('SBC') || comp.includes('AMERITECH') || comp.includes('NEVADA BELL')
+        ) {
+          return { carrier: `${comp} (AT&T Wireline)`, lineType: 'LANDLINE', isSmsEligible: false };
+        }
+        if (
+          comp.includes('VERIZON NEW YORK') || comp.includes('VERIZON NEW ENGLAND') || comp.includes('VERIZON PENNSYLVANIA') ||
+          comp.includes('VERIZON SOUTH') || comp.includes('VERIZON NORTH') || comp.includes('VERIZON DELAWARE') || comp.includes('VERIZON MARYLAND')
+        ) {
+          return { carrier: `${comp} (Verizon Wireline)`, lineType: 'LANDLINE', isSmsEligible: false };
+        }
+        if (comp.includes('QWEST') || comp.includes('CENTURYLINK') || comp.includes('LUMEN') || comp.includes('EMBARQ')) {
+          return { carrier: 'CenturyLink / Lumen Landline', lineType: 'LANDLINE', isSmsEligible: false };
+        }
+        if (comp.includes('FRONTIER') || comp.includes('CITIZENS UTILITIES')) {
+          return { carrier: 'Frontier Communications Landline', lineType: 'LANDLINE', isSmsEligible: false };
+        }
+        if (comp.includes('WINDSTREAM') || comp.includes('VALOR')) {
+          return { carrier: 'Windstream Landline', lineType: 'LANDLINE', isSmsEligible: false };
+        }
+
+        // Check Known Cable & VoIP Providers
+        if (comp.includes('COMCAST') || comp.includes('CHARTER') || comp.includes('TIME WARNER') || comp.includes('COX') || comp.includes('CABLEVISION')) {
+          return { carrier: `${comp} Cable VoIP`, lineType: 'VOIP', isSmsEligible: false };
+        }
+        if (comp.includes('BANDWIDTH') || comp.includes('TWILIO') || comp.includes('PEERLESS') || comp.includes('LEVEL 3') || comp.includes('SINCH') || comp.includes('VONAGE') || comp.includes('RINGCENTRAL')) {
+          return { carrier: `${comp} VoIP Provider`, lineType: 'VOIP', isSmsEligible: false };
+        }
+
+        // If LERG company type is ILEC ('I') or CLEC ('C')
+        if (compType === 'I') {
+          return { carrier: comp || 'Local ILEC Telco', lineType: 'LANDLINE', isSmsEligible: false };
+        }
+        if (compType === 'C') {
+          return { carrier: comp || 'Local CLEC Provider', lineType: 'VOIP', isSmsEligible: false };
         }
       }
     } catch (err) {
@@ -108,27 +167,30 @@ export class SmsDispatcherService {
 
       if (res.ok) {
         const html = (await res.text()).toLowerCase();
-        if (html.includes('verizon')) {
-          return { carrier: 'Verizon Wireless', gatewayEmail: `${cleanDigits}@vtext.com` };
+        if (html.includes('verizon wireless') || html.includes('vzw')) {
+          return { carrier: 'Verizon Wireless', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@vtext.com` };
         }
-        if (html.includes('at&t') || html.includes('att mobility') || html.includes('cingular')) {
-          return { carrier: 'AT&T Mobility', gatewayEmail: `${cleanDigits}@txt.att.net` };
+        if (html.includes('at&t mobility') || html.includes('att mobility') || html.includes('cingular')) {
+          return { carrier: 'AT&T Mobility', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@txt.att.net` };
         }
         if (html.includes('t-mobile') || html.includes('tmobile') || html.includes('sprint')) {
-          return { carrier: 'T-Mobile USA', gatewayEmail: `${cleanDigits}@tmomail.net` };
+          return { carrier: 'T-Mobile USA', lineType: 'MOBILE', isSmsEligible: true, gatewayEmail: `${cleanDigits}@tmomail.net` };
         }
-        if (html.includes('cricket')) {
-          return { carrier: 'Cricket Wireless', gatewayEmail: `${cleanDigits}@mms.cricketwireless.net` };
-        }
-        if (html.includes('metro')) {
-          return { carrier: 'MetroPCS', gatewayEmail: `${cleanDigits}@mymetropcs.com` };
+        if (html.includes('landline') || html.includes('centurylink') || html.includes('frontier') || html.includes('comcast')) {
+          return { carrier: 'Landline Provider', lineType: 'LANDLINE', isSmsEligible: false };
         }
       }
     } catch (e) {
       // Ignore web search fallback errors
     }
 
-    return null;
+    // Default fallback: Default target for unconfirmed numbers
+    return {
+      carrier: 'Verizon Wireless (Default Target)',
+      lineType: 'MOBILE',
+      isSmsEligible: true,
+      gatewayEmail: `${cleanDigits}@vtext.com`,
+    };
   }
 
   /**
@@ -142,7 +204,7 @@ export class SmsDispatcherService {
   }
 
   /**
-   * Dispatch SMS Pitch to a single lead via EXACTLY ONE specific detected Carrier Gateway
+   * Dispatch SMS Pitch to a single lead via Carrier Gateway IF it is an SMS-eligible Mobile line
    */
   async sendSmsPitchForLead(leadId: string): Promise<Lead> {
     const lead = await this.leadModel.findById(leadId).exec();
@@ -161,30 +223,38 @@ export class SmsDispatcherService {
       );
     }
 
-    // 1. High-precision carrier detection
-    const detected = await this.detectCarrierAndGateway(lead.phone);
+    // 1. High-precision carrier & line-type detection
+    const detected = await this.detectCarrierAndLineType(lead.phone);
 
-    let targetGatewayEmail = '';
-    let carrierName = '';
+    // Save detected lineType & carrier to MongoDB Lead record
+    lead.carrier = detected.carrier;
+    lead.lineType = detected.lineType;
 
-    if (detected && detected.gatewayEmail) {
-      targetGatewayEmail = detected.gatewayEmail;
-      carrierName = detected.carrier;
-      this.logger.log(`Targeting confirmed carrier for ${lead.name} (${cleanDigits}): ${detected.carrier} -> ${targetGatewayEmail}`);
-    } else {
-      // Default to Verizon (@vtext.com) - #1 US mobile carrier by subscriber count.
-      // ALWAYS send to ONLY 1 gateway domain to avoid multi-recipient bounce notifications!
-      targetGatewayEmail = `${cleanDigits}@vtext.com`;
-      carrierName = 'Verizon Wireless (Default Target)';
-      this.logger.log(`Carrier unconfirmed for ${lead.name} (${cleanDigits}). Targeting primary US mobile carrier gateway: ${targetGatewayEmail}`);
+    // 2. CHECK IF SMS ELIGIBLE (Block Landlines & VoIP lines)
+    if (!detected.isSmsEligible || detected.lineType === 'LANDLINE' || detected.lineType === 'VOIP') {
+      const reason = `SMS Dispatch Disabled: Phone number (${lead.phone}) is a ${detected.lineType} line provided by ${detected.carrier}. Carrier gateways reject Email-to-SMS for landlines.`;
+      
+      if (!lead.opportunityTags.includes('LANDLINE_NUMBER')) {
+        lead.opportunityTags.push('LANDLINE_NUMBER');
+      }
+      
+      lead.notes = lead.notes
+        ? `${lead.notes}\n[${new Date().toISOString()}] ${reason}`
+        : `[${new Date().toISOString()}] ${reason}`;
+      
+      await lead.save();
+      this.logger.warn(`Blocked SMS dispatch for ${lead.name} (${cleanDigits}): ${detected.lineType} line.`);
+      
+      throw new Error(reason);
     }
 
+    const targetGatewayEmail = detected.gatewayEmail || `${cleanDigits}@vtext.com`;
     const pitchText = this.generateSmsPitchText(lead);
     const transporter = this.getTransporter();
     const senderUser = process.env.SMTP_USER || 'leadfinder@outreach.com';
 
     this.logger.log(
-      `Sending Email-to-SMS pitch for "${lead.name}" to single gateway (${carrierName}): ${targetGatewayEmail}`,
+      `Sending Email-to-SMS pitch for "${lead.name}" to gateway (${detected.carrier}): ${targetGatewayEmail}`,
     );
 
     // Send email ONLY to the single target carrier gateway
@@ -198,17 +268,17 @@ export class SmsDispatcherService {
     // Update lead status & notes in MongoDB CRM
     lead.status = 'CONTACTED';
     lead.notes = lead.notes
-      ? `${lead.notes}\n[${new Date().toISOString()}] Email-to-SMS pitch dispatched via ${carrierName} (${targetGatewayEmail}).`
-      : `[${new Date().toISOString()}] Email-to-SMS pitch dispatched via ${carrierName} (${targetGatewayEmail}).`;
+      ? `${lead.notes}\n[${new Date().toISOString()}] Email-to-SMS pitch dispatched via ${detected.carrier} (${targetGatewayEmail}).`
+      : `[${new Date().toISOString()}] Email-to-SMS pitch dispatched via ${detected.carrier} (${targetGatewayEmail}).`;
 
     await lead.save();
-    this.logger.log(`Successfully dispatched Email-to-SMS pitch for ${lead.name} (${carrierName}) to ${targetGatewayEmail}`);
+    this.logger.log(`Successfully dispatched Email-to-SMS pitch for ${lead.name} (${detected.carrier}) to ${targetGatewayEmail}`);
 
     return lead;
   }
 
   /**
-   * Batch dispatch SMS pitches to multiple selected leads
+   * Batch dispatch SMS pitches to multiple selected leads (automatically skipping Landlines)
    */
   async batchSendSmsPitches(leadIds: string[]): Promise<{ processed: number; successCount: number; errors: string[] }> {
     let successCount = 0;
@@ -221,7 +291,7 @@ export class SmsDispatcherService {
         // 2-second delay between dispatches to ensure clean SMTP throughput
         await new Promise((resolve) => setTimeout(resolve, 2000));
       } catch (err) {
-        this.logger.error(`Error in batch dispatch for lead ${leadId}: ${err.message}`);
+        this.logger.error(`Skipped/Error in batch dispatch for lead ${leadId}: ${err.message}`);
         errors.push(`Lead ${leadId}: ${err.message}`);
       }
     }
