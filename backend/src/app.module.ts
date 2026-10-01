@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { join } from 'path';
 import { LeadsModule } from './leads/leads.module';
 import { OutreachModule } from './outreach/outreach.module';
+import { AuthModule } from './auth/auth.module';
 
 // Load .env file if available
 try {
@@ -25,7 +26,9 @@ const mongoUri = process.env.MONGODB_URI || 'mongodb://root:password123@localhos
       sortSchema: true,
       playground: true,
       introspection: true,
+      context: ({ req, res }) => ({ req, res }),
     }),
+    AuthModule,
     LeadsModule,
     OutreachModule,
   ],

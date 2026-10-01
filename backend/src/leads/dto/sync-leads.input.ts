@@ -102,3 +102,34 @@ export class UpdateLeadStatusInput {
   @IsString()
   notes?: string;
 }
+
+@InputType()
+export class SaveScraperConfigInput {
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  maxLeads?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  noWebsiteOnly?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  mustHavePhone?: boolean;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  maxRating?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  maxReviews?: string;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  autoStart?: boolean;
+}
+

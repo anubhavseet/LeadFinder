@@ -2495,39 +2495,4 @@
   if (isGoogleMaps) {
     parseCurrentSinglePlace();
   }
-
-  // Chrome Extension Runtime Message Bridge (for extension popup.js)
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.action === 'START_SCRAPING') {
-        if (request.maxLeads) {
-          maxLeadsTarget = parseInt(request.maxLeads, 10);
-          if (selectMaxLeads) selectMaxLeads.value = String(maxLeadsTarget);
-        }
-        if (request.filters) {
-          activeFilters = { ...activeFilters, ...request.filters };
-          if (filterNoWebsite) filterNoWebsite.checked = !!activeFilters.noWebsiteOnly;
-          if (filterMustPhone) filterMustPhone.checked = !!activeFilters.mustHavePhone;
-          if (filterMaxRating) filterMaxRating.value = activeFilters.maxRating || 'any';
-          if (filterMaxReviews) filterMaxReviews.value = activeFilters.maxReviews || 'any';
-        }
-        updateStats();
-        if (!isScraping) toggleScraping();
-        sendResponse({ status: 'STARTED' });
-      } else if (request.action === 'STOP_SCRAPING') {
-        if (isScraping) {
-          isScraping = false;
-          updateStartButtonState();
-        }
-        sendResponse({ status: 'STOPPED' });
-      } else if (request.action === 'GET_STATS') {
-        sendResponse({
-          totalLeads: scrapedLeadsMap.size,
-          isScraping,
-        });
-      }
-      return true;
-    });
-  }
-
 })();

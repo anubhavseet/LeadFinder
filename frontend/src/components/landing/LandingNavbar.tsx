@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { User, LogIn, UserPlus, Bookmark } from 'lucide-react';
+import { BookmarkletModal } from '../bookmarklet/BookmarkletModal';
 
 interface LandingNavbarProps {
   onLaunchCrm: () => void;
@@ -7,6 +10,8 @@ interface LandingNavbarProps {
 
 export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onLaunchCrm, onScrollToSection }) => {
   const [scrolled, setScrolled] = useState<boolean>(false);
+  const { user, isAuthenticated, openAuthModal, openProfileModal } = useAuth();
+  const [isBookmarkletOpen, setIsBookmarkletOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -15,6 +20,15 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onLaunchCrm, onScr
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const getInitials = (nameStr: string) => {
+    return nameStr
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
 
   return (
     <header
@@ -73,15 +87,60 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onLaunchCrm, onScr
             </button>
           </nav>
 
-          {/* CTA */}
-          <button
-            onClick={onLaunchCrm}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors active:scale-[0.98]"
-          >
-            Open dashboard
-          </button>
+          {/* Auth & CTA group */}
+          <div className="flex items-center gap-2.5">
+            {isAuthenticated && user ? (
+              <button
+                onClick={openProfileModal}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200/80 text-gray-800 text-xs font-semibold transition-colors border border-gray-200"
+                title="Account Settings"
+              >
+                <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+                  {getInitials(user.name)}
+                </div>
+                <span className="max-w-[100px] truncate">{user.name}</span>
+              </button>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5">
+                <button
+                  onClick={() => openAuthModal('login')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <LogIn size={13} />
+                  <span>Sign in</span>
+                </button>
+                <button
+                  onClick={() => openAuthModal('register')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/80 rounded-lg transition-colors"
+                >
+                  <UserPlus size={13} />
+                  <span>Create account</span>
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => setIsBookmarkletOpen(true)}
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100/80 text-blue-700 text-xs font-semibold rounded-lg transition-colors border border-blue-200/60"
+            >
+              <Bookmark size={13} className="text-blue-600 fill-blue-600/20" />
+              <span>Get Extractor (Free)</span>
+            </button>
+
+            <button
+              onClick={onLaunchCrm}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors active:scale-[0.98] shadow-sm"
+            >
+              Dashboard
+            </button>
+          </div>
         </div>
       </div>
+
+      <BookmarkletModal
+        isOpen={isBookmarkletOpen}
+        onClose={() => setIsBookmarkletOpen(false)}
+      />
     </header>
   );
 };

@@ -48,3 +48,25 @@ export class SyncLeadsResult {
   @Field(() => Int)
   totalProcessed: number;
 }
+
+@ObjectType()
+export class ScraperConfig {
+  @Field(() => Int)
+  maxLeads: number;
+
+  @Field(() => Boolean)
+  noWebsiteOnly: boolean;
+
+  @Field(() => Boolean)
+  mustHavePhone: boolean;
+
+  @Field(() => String)
+  maxRating: string;
+
+  @Field(() => String)
+  maxReviews: string;
+
+  @Field(() => Boolean)
+  autoStart: boolean;
+}
+

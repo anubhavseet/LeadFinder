@@ -1,13 +1,40 @@
-import { Lead, LeadStats, OutreachPitch } from '../types';
+import { Lead, LeadStats, OutreachPitch, User, AuthPayload, SignUpInput, LoginInput, UpdateProfileInput } from '../types';
 
 const GRAPHQL_ENDPOINT = 'http://localhost:4000/graphql';
 
+export const AUTH_TOKEN_KEY = 'leadfinder_token';
+export const AUTH_USER_KEY = 'leadfinder_user';
+
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function setStoredAuth(token: string, user: User): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+}
+
+export function clearStoredAuth(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+}
+
 export async function fetchGraphQL<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
+    credentials: 'include',
     body: JSON.stringify({ query, variables }),
   });
 
@@ -62,13 +89,21 @@ export async function getLeads(
       cleanFilter.lowReviewsOnly = true;
       hasFilter = true;
     }
+    if (filter.hasPhone !== undefined && filter.hasPhone !== null) {
+      cleanFilter.hasPhone = filter.hasPhone;
+      hasFilter = true;
+    }
+    if (filter.hasEmail !== undefined && filter.hasEmail !== null) {
+      cleanFilter.hasEmail = filter.hasEmail;
+      hasFilter = true;
+    }
   }
 
   // Build clean pagination object — sortOrder must be the enum value unquoted
   const paginationVars = {
     page: pagination?.page || 1,
     limit: pagination?.limit || 15,
-    sortBy: pagination?.sortBy || 'opportunityScore',
+    sortBy: pagination?.sortBy || 'createdAt',
     sortOrder: pagination?.sortOrder || 'DESC',
   };
 
@@ -214,6 +249,17 @@ export async function deleteLead(id: string): Promise<boolean> {
   return data.deleteLead;
 }
 
+export async function deleteLeads(ids: string[]): Promise<number> {
+  const query = `
+    mutation DeleteLeads($ids: [ID!]!) {
+      deleteLeads(ids: $ids)
+    }
+  `;
+  const data = await fetchGraphQL<{ deleteLeads: number }>(query, { ids });
+  return data.deleteLeads;
+}
+
+
 export async function generateOutreachPitch(leadId: string, serviceType?: string): Promise<OutreachPitch> {
   const query = `
     mutation GeneratePitch($leadId: ID!, $serviceType: String) {
@@ -273,3 +319,137 @@ export async function batchSendSmsPitches(leadIds: string[]): Promise<{ updatedC
   const data = await fetchGraphQL<{ batchSendSmsPitches: { updatedCount: number; totalProcessed: number } }>(query, { leadIds });
   return data.batchSendSmsPitches;
 }
+
+// ----------------------------------------------------
+// Authentication API Methods
+// ----------------------------------------------------
+
+export async function registerUser(input: SignUpInput): Promise<AuthPayload> {
+  const query = `
+    mutation Register($input: SignUpInput!) {
+      register(input: $input) {
+        token
+        user {
+          id
+          name
+          email
+          apiKey
+          avatar
+          role
+          createdAt
+        }
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ register: AuthPayload }>(query, { input });
+  setStoredAuth(data.register.token, data.register.user);
+  return data.register;
+}
+
+export async function loginUser(input: LoginInput): Promise<AuthPayload> {
+  const query = `
+    mutation Login($input: LoginInput!) {
+      login(input: $input) {
+        token
+        user {
+          id
+          name
+          email
+          apiKey
+          avatar
+          role
+          createdAt
+        }
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ login: AuthPayload }>(query, { input });
+  setStoredAuth(data.login.token, data.login.user);
+  return data.login;
+}
+
+export async function getCurrentUser(): Promise<User> {
+  const query = `
+    query Me {
+      me {
+        id
+        name
+        email
+        apiKey
+        avatar
+        role
+        createdAt
+        updatedAt
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ me: User }>(query);
+  const token = getStoredToken();
+  if (token && data.me) {
+    setStoredAuth(token, data.me);
+  }
+  return data.me;
+}
+
+export async function updateUserProfile(input: UpdateProfileInput): Promise<User> {
+  const query = `
+    mutation UpdateProfile($input: UpdateProfileInput!) {
+      updateProfile(input: $input) {
+        id
+        name
+        email
+        apiKey
+        avatar
+        role
+        createdAt
+        updatedAt
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ updateProfile: User }>(query, { input });
+  const token = getStoredToken();
+  if (token && data.updateProfile) {
+    setStoredAuth(token, data.updateProfile);
+  }
+  return data.updateProfile;
+}
+
+export async function regenerateUserApiKey(): Promise<User> {
+  const query = `
+    mutation RegenerateApiKey {
+      regenerateApiKey {
+        id
+        name
+        email
+        apiKey
+        avatar
+        role
+        createdAt
+        updatedAt
+      }
+    }
+  `;
+  const data = await fetchGraphQL<{ regenerateApiKey: User }>(query);
+  const token = getStoredToken();
+  if (token && data.regenerateApiKey) {
+    setStoredAuth(token, data.regenerateApiKey);
+  }
+  return data.regenerateApiKey;
+}
+
+export async function logoutUser(): Promise<boolean> {
+  const query = `
+    mutation Logout {
+      logout
+    }
+  `;
+  try {
+    const data = await fetchGraphQL<{ logout: boolean }>(query);
+    clearStoredAuth();
+    return data.logout;
+  } catch (e) {
+    clearStoredAuth();
+    return true;
+  }
+}
+

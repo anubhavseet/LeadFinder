@@ -78,6 +78,10 @@ export class Lead {
   @Prop({ required: false, default: null })
   lineType?: string;
 
+  @Field(() => String, { nullable: true })
+  @Prop({ required: false, default: null, index: true })
+  userId?: string;
+
   @Field(() => Date)
   createdAt: Date;
 

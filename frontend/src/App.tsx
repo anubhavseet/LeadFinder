@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { LandingView } from './views/LandingView';
 import { DashboardView } from './views/DashboardView';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthModal } from './components/auth/AuthModal';
+import { ProfileModal } from './components/auth/ProfileModal';
 
-export const App: React.FC = () => {
+export const AppContent: React.FC = () => {
+  const { isAuthenticated, isLoading, openAuthModal } = useAuth();
+
   // Read initial view from URL hash or default to 'landing'
   const getInitialView = (): 'landing' | 'crm' => {
     if (typeof window !== 'undefined') {
@@ -16,25 +21,43 @@ export const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<'landing' | 'crm'>(getInitialView);
 
-  // Sync hash changes (e.g. browser back/forward buttons or direct hash links)
+  // Sync and protect hash changes
   useEffect(() => {
+    if (isLoading) return;
+
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
       if (hash === '#crm' || hash === '#dashboard') {
-        setCurrentView('crm');
+        if (!isAuthenticated) {
+          setCurrentView('landing');
+          window.location.hash = '';
+          openAuthModal('login');
+        } else {
+          setCurrentView('crm');
+        }
       } else if (hash === '#landing' || hash === '' || hash.startsWith('#hero') || hash.startsWith('#features')) {
-        // If it's an anchor on the landing page, keep landing view
         if (currentView !== 'landing' && (hash === '#landing' || hash === '')) {
           setCurrentView('landing');
         }
       }
     };
 
+    // Initial check when auth finishes loading
+    if (currentView === 'crm' && !isAuthenticated) {
+      setCurrentView('landing');
+      window.location.hash = '';
+      openAuthModal('login');
+    }
+
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [currentView]);
+  }, [currentView, isAuthenticated, isLoading, openAuthModal]);
 
   const handleNavigateToCrm = () => {
+    if (!isAuthenticated) {
+      openAuthModal('login');
+      return;
+    }
     setCurrentView('crm');
     window.location.hash = 'crm';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -53,7 +76,17 @@ export const App: React.FC = () => {
       ) : (
         <DashboardView onNavigateLanding={handleNavigateToLanding} />
       )}
+      <AuthModal />
+      <ProfileModal />
     </>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

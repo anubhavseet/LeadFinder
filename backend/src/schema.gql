@@ -2,6 +2,12 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+"""Authentication response payload containing JWT token and user"""
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -28,11 +34,14 @@ type Lead {
   searchQuery: String
   status: String!
   updatedAt: DateTime!
+  userId: String
   website: String
 }
 
 input LeadFilterInput {
   category: String
+  hasEmail: Boolean
+  hasPhone: Boolean
   lowRatingOnly: Boolean
   lowReviewsOnly: Boolean
   minOpportunityScore: Int
@@ -50,6 +59,12 @@ type LeadStats {
   totalLeads: Int!
 }
 
+"""Login credentials input"""
+input LoginInput {
+  email: String!
+  password: String!
+}
+
 type Mutation {
   """Batch dispatch SMS pitches to multiple selected leads"""
   batchSendSmsPitches(leadIds: [ID!]!): SyncLeadsResult!
@@ -57,11 +72,29 @@ type Mutation {
   """Delete a lead by ID"""
   deleteLead(id: ID!): Boolean!
 
+  """Batch delete multiple leads by ID array"""
+  deleteLeads(ids: [ID!]!): Int!
+
   """Search OSINT web sources to discover email for a lead"""
   findEmailForLead(id: ID!): Lead!
 
   """Generate tailored freelancing cold outreach pitch for a lead"""
   generatePitch(leadId: ID!, serviceType: String): OutreachPitch!
+
+  """Authenticate an existing user"""
+  login(input: LoginInput!): AuthPayload!
+
+  """Clear session cookie and log out"""
+  logout: Boolean!
+
+  """Regenerate API key for Chrome extension & external tools"""
+  regenerateApiKey: User!
+
+  """Register a new user account"""
+  register(input: SignUpInput!): AuthPayload!
+
+  """Save global scraper configuration across tabs and sessions"""
+  saveScraperConfig(input: SaveScraperConfigInput!): ScraperConfig!
 
   """Automated backend Email-to-SMS gateway pitch dispatch to lead"""
   sendSmsPitchForLead(id: ID!): Lead!
@@ -74,6 +107,9 @@ type Mutation {
 
   """Update CRM lead status and notes"""
   updateLeadStatus(input: UpdateLeadStatusInput!): Lead!
+
+  """Update current user profile info or password"""
+  updateProfile(input: UpdateProfileInput!): User!
 
   """Audit and verify all database leads missing websites via OSINT"""
   verifyDatabaseWebsites: SyncLeadsResult!
@@ -112,6 +148,21 @@ type Query {
 
   """Fetch leads with filters and pagination"""
   leads(filter: LeadFilterInput, pagination: PaginationInput): PaginatedLeads!
+
+  """Fetch currently authenticated user profile"""
+  me: User!
+
+  """Get global scraper configuration for bookmarklet and extension"""
+  scraperConfig: ScraperConfig!
+}
+
+input SaveScraperConfigInput {
+  autoStart: Boolean
+  maxLeads: Int
+  maxRating: String
+  maxReviews: String
+  mustHavePhone: Boolean
+  noWebsiteOnly: Boolean
 }
 
 input ScrapedLeadInput {
@@ -125,6 +176,22 @@ input ScrapedLeadInput {
   reviewCount: Int
   searchQuery: String
   website: String
+}
+
+type ScraperConfig {
+  autoStart: Boolean!
+  maxLeads: Int!
+  maxRating: String!
+  maxReviews: String!
+  mustHavePhone: Boolean!
+  noWebsiteOnly: Boolean!
+}
+
+"""Registration credentials input"""
+input SignUpInput {
+  email: String!
+  name: String!
+  password: String!
 }
 
 """Sort direction (ASC or DESC)"""
@@ -155,4 +222,24 @@ input UpdateLeadStatusInput {
   id: String!
   notes: String
   status: String!
+}
+
+"""Update profile input"""
+input UpdateProfileInput {
+  avatar: String
+  currentPassword: String
+  name: String
+  newPassword: String
+}
+
+"""LeadFinder platform user"""
+type User {
+  apiKey: String
+  avatar: String
+  createdAt: DateTime!
+  email: String!
+  id: ID!
+  name: String!
+  role: String!
+  updatedAt: DateTime!
 }

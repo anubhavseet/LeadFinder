@@ -5,15 +5,23 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 
+import * as cookieParser from 'cookie-parser';
+
 async function bootstrap() {
   const logger = new Logger('LeadFinderBootstrap');
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for Chrome Extension and Vite React Frontend
+  app.use(cookieParser());
+
+  // Enable CORS with dynamic origin reflection to support credentials across Vite Frontend, Chrome Extension, and Google Maps
   app.enableCors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow any requesting origin (including localhost and google.com) with credentials
+      callback(null, true);
+    },
     credentials: true,
   });
+
 
   app.useGlobalPipes(
     new ValidationPipe({

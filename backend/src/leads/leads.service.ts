@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Lead, LeadDocument } from './models/lead.model';
-import { ScrapedLeadInput, SyncLeadsInput, UpdateLeadStatusInput } from './dto/sync-leads.input';
+import { ScrapedLeadInput, SyncLeadsInput, UpdateLeadStatusInput, SaveScraperConfigInput } from './dto/sync-leads.input';
 import { LeadFilterInput, PaginationInput } from './dto/lead-filter.input';
-import { LeadStats, SyncLeadsResult } from './dto/lead-stats.object';
+import { LeadStats, SyncLeadsResult, ScraperConfig } from './dto/lead-stats.object';
 
 @Injectable()
 export class LeadsService {
@@ -101,7 +101,7 @@ export class LeadsService {
     return null;
   }
 
-  async syncScrapedLeads(input: SyncLeadsInput): Promise<SyncLeadsResult> {
+  async syncScrapedLeads(input: SyncLeadsInput, userId?: string): Promise<SyncLeadsResult> {
     let addedCount = 0;
     let updatedCount = 0;
 
@@ -129,11 +129,13 @@ export class LeadsService {
       }
 
       // Unique identifier query: match by exact name and address, or phone number if address missing
-      const queryFilter = scrapedLead.address
+      const baseFilter = scrapedLead.address
         ? { name: scrapedLead.name.trim(), address: scrapedLead.address.trim() }
         : scrapedLead.phone
         ? { name: scrapedLead.name.trim(), phone: scrapedLead.phone.trim() }
         : { name: scrapedLead.name.trim() };
+
+      const queryFilter = userId ? { ...baseFilter, userId } : baseFilter;
 
       const existingLead = await this.leadModel.findOne(queryFilter);
       const finalWebsite = cleanWebsite || existingLead?.website || null;
@@ -188,6 +190,7 @@ export class LeadsService {
         opportunityScore: score,
         opportunityTags: tags,
         searchQuery: scrapedLead.searchQuery || existingLead?.searchQuery,
+        ...(userId ? { userId } : {}),
       };
 
       if (existingLead) {
@@ -197,9 +200,11 @@ export class LeadsService {
         await this.leadModel.create({
           ...updateData,
           status: 'NEW',
+          userId: userId || null,
         });
         addedCount++;
       }
+
     }
 
     return {
@@ -241,8 +246,12 @@ export class LeadsService {
     return { checked: noWebsiteLeads.length, updatedCount };
   }
 
-  async findAll(filter?: LeadFilterInput, pagination?: PaginationInput) {
+  async findAll(filter?: LeadFilterInput, pagination?: PaginationInput, userId?: string) {
     const conditions: any[] = [];
+
+    if (userId) {
+      conditions.push({ userId });
+    }
 
     if (filter) {
       if (filter.search && filter.search.trim() !== '') {
@@ -288,7 +297,20 @@ export class LeadsService {
       if (filter.minOpportunityScore !== undefined && filter.minOpportunityScore !== null) {
         conditions.push({ opportunityScore: { $gte: filter.minOpportunityScore } });
       }
+
+      if (filter.hasPhone === true) {
+        conditions.push({ phone: { $exists: true, $ne: null, $nin: ['', 'N/A'] } });
+      } else if (filter.hasPhone === false) {
+        conditions.push({ $or: [{ phone: { $exists: false } }, { phone: null }, { phone: '' }, { phone: 'N/A' }] });
+      }
+
+      if (filter.hasEmail === true) {
+        conditions.push({ email: { $exists: true, $ne: null, $nin: ['', 'N/A'] } });
+      } else if (filter.hasEmail === false) {
+        conditions.push({ $or: [{ email: { $exists: false } }, { email: null }, { email: '' }] });
+      }
     }
+
 
     const mongoQuery = conditions.length > 0 ? { $and: conditions } : {};
 
@@ -296,7 +318,7 @@ export class LeadsService {
     const limit = pagination?.limit || 15;
     const skip = (page - 1) * limit;
 
-    const sortBy = pagination?.sortBy || 'opportunityScore';
+    const sortBy = pagination?.sortBy || 'createdAt';
     const sortOrder = pagination?.sortOrder === 'ASC' ? 1 : -1;
 
     const [items, totalCount] = await Promise.all([
@@ -317,14 +339,16 @@ export class LeadsService {
     };
   }
 
-  async findOne(id: string): Promise<Lead> {
-    return this.leadModel.findById(id).exec();
+  async findOne(id: string, userId?: string): Promise<Lead> {
+    const query = userId ? { _id: id, userId } : { _id: id };
+    return this.leadModel.findOne(query).exec();
   }
 
-  async updateStatus(input: UpdateLeadStatusInput): Promise<Lead> {
+  async updateStatus(input: UpdateLeadStatusInput, userId?: string): Promise<Lead> {
+    const query = userId ? { _id: input.id, userId } : { _id: input.id };
     return this.leadModel
-      .findByIdAndUpdate(
-        input.id,
+      .findOneAndUpdate(
+        query,
         {
           $set: {
             status: input.status,
@@ -336,38 +360,54 @@ export class LeadsService {
       .exec();
   }
 
-  async deleteLead(id: string): Promise<boolean> {
-    const res = await this.leadModel.findByIdAndDelete(id).exec();
+  async deleteLead(id: string, userId?: string): Promise<boolean> {
+    const query = userId ? { _id: id, userId } : { _id: id };
+    const res = await this.leadModel.findOneAndDelete(query).exec();
     return !!res;
   }
 
-  async getStats(): Promise<LeadStats> {
-    const totalLeads = await this.leadModel.countDocuments().exec();
+  async deleteLeads(ids: string[], userId?: string): Promise<number> {
+    const query = userId ? { _id: { $in: ids }, userId } : { _id: { $in: ids } };
+    const res = await this.leadModel.deleteMany(query).exec();
+    return res.deletedCount || 0;
+  }
+
+  async getStats(userId?: string): Promise<LeadStats> {
+    const userQuery = userId ? { userId } : {};
+
+    const totalLeads = await this.leadModel.countDocuments(userQuery).exec();
     const noWebsiteCount = await this.leadModel.countDocuments({
+      ...userQuery,
       $or: [{ website: null }, { website: '' }],
     }).exec();
 
     const lowRatingCount = await this.leadModel.countDocuments({
+      ...userQuery,
       rating: { $gt: 0, $lt: 4.0 },
     }).exec();
 
     const lowReviewsCount = await this.leadModel.countDocuments({
+      ...userQuery,
       reviewCount: { $lt: 15 },
     }).exec();
 
     const highPriorityLeadsCount = await this.leadModel.countDocuments({
+      ...userQuery,
       opportunityScore: { $gte: 60 },
     }).exec();
 
     let avgOpportunityScore = 0;
     try {
+      const matchStage = userId ? [{ $match: { userId } }] : [];
       const avgScoreResult = await this.leadModel.aggregate([
+        ...matchStage,
         { $group: { _id: null, avgScore: { $avg: '$opportunityScore' } } },
       ]).exec();
       avgOpportunityScore = avgScoreResult.length > 0 ? avgScoreResult[0].avgScore : 0;
     } catch (err) {
       // Fallback in case MongoDB instance restricts aggregate command or requires auth for aggregate
-      const leads = await this.leadModel.find({}, { opportunityScore: 1 }).lean().exec();
+      const leads = await this.leadModel.find(userQuery, { opportunityScore: 1 }).lean().exec();
+
       if (leads.length > 0) {
         const sum = leads.reduce((acc, lead) => acc + (lead.opportunityScore || 0), 0);
         avgOpportunityScore = sum / leads.length;
@@ -384,8 +424,9 @@ export class LeadsService {
     };
   }
 
-  async updateEmail(id: string, email: string, emailSource?: string): Promise<Lead> {
-    const lead = await this.leadModel.findById(id).exec();
+  async updateEmail(id: string, email: string, emailSource?: string, userId?: string): Promise<Lead> {
+    const query = userId ? { _id: id, userId } : { _id: id };
+    const lead = await this.leadModel.findOne(query).exec();
     if (!lead) {
       throw new Error(`Lead with ID ${id} not found`);
     }
@@ -393,4 +434,30 @@ export class LeadsService {
     if (emailSource) lead.emailSource = emailSource;
     return lead.save();
   }
+
+  private currentScraperConfig: ScraperConfig = {
+    maxLeads: 100,
+    noWebsiteOnly: false,
+    mustHavePhone: false,
+    maxRating: 'any',
+    maxReviews: 'any',
+    autoStart: false,
+  };
+
+  getScraperConfig(): ScraperConfig {
+    return this.currentScraperConfig;
+  }
+
+  saveScraperConfig(input: SaveScraperConfigInput): ScraperConfig {
+    this.currentScraperConfig = {
+      maxLeads: input.maxLeads !== undefined ? input.maxLeads : this.currentScraperConfig.maxLeads,
+      noWebsiteOnly: input.noWebsiteOnly !== undefined ? input.noWebsiteOnly : this.currentScraperConfig.noWebsiteOnly,
+      mustHavePhone: input.mustHavePhone !== undefined ? input.mustHavePhone : this.currentScraperConfig.mustHavePhone,
+      maxRating: input.maxRating !== undefined ? input.maxRating : this.currentScraperConfig.maxRating,
+      maxReviews: input.maxReviews !== undefined ? input.maxReviews : this.currentScraperConfig.maxReviews,
+      autoStart: input.autoStart !== undefined ? input.autoStart : false,
+    };
+    return this.currentScraperConfig;
+  }
 }
+

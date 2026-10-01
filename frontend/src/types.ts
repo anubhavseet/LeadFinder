@@ -37,3 +37,37 @@ export interface OutreachPitch {
   body: string;
   keyHighlights: string[];
 }
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  apiKey?: string;
+  avatar?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AuthPayload {
+  token: string;
+  user: User;
+}
+
+export interface SignUpInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface UpdateProfileInput {
+  name?: string;
+  avatar?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}

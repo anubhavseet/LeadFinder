@@ -47,7 +47,18 @@ export class LeadFilterInput {
   @IsOptional()
   @IsInt()
   minOpportunityScore?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  hasPhone?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  hasEmail?: boolean;
 }
+
 
 @InputType()
 export class PaginationInput {

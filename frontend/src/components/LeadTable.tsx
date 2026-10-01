@@ -1,5 +1,23 @@
 import React, { useState } from 'react';
-import { Star, Globe, Phone, ExternalLink, Mail, Trash2, ChevronLeft, ChevronRight, Search, Loader2, Send, CheckSquare } from 'lucide-react';
+import {
+  Star,
+  Globe,
+  Phone,
+  ExternalLink,
+  Mail,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Loader2,
+  Send,
+  CheckSquare,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Calendar,
+  AlertTriangle,
+} from 'lucide-react';
 import { Lead } from '../types';
 import { generateMailtoLink, generateSmsPitchText } from '../utils/smsGateway';
 
@@ -10,11 +28,15 @@ interface LeadTableProps {
   totalPages: number;
   limit: number;
   loading?: boolean;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+  onSortColumn?: (column: string) => void;
   onPageChange: (newPage: number) => void;
   onLimitChange: (newLimit: number) => void;
   onOpenPitch: (lead: Lead) => void;
   onUpdateStatus: (id: string, status: string) => void;
   onDeleteLead: (id: string) => void;
+  onBatchDeleteLeads?: (ids: string[]) => Promise<void>;
   onFindEmail?: (id: string) => Promise<void>;
   onSendSmsPitch?: (id: string) => Promise<void>;
   onBatchSendSmsPitches?: (ids: string[]) => Promise<void>;
@@ -27,11 +49,15 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   totalPages,
   limit,
   loading,
+  sortBy = 'createdAt',
+  sortOrder = 'DESC',
+  onSortColumn,
   onPageChange,
   onLimitChange,
   onOpenPitch,
   onUpdateStatus,
   onDeleteLead,
+  onBatchDeleteLeads,
   onFindEmail,
   onSendSmsPitch,
   onBatchSendSmsPitches,
@@ -40,6 +66,9 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   const [sendingSmsId, setSendingSmsId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [batchSending, setBatchSending] = useState<boolean>(false);
+  const [batchDeleting, setBatchDeleting] = useState<boolean>(false);
+  const [deleteConfirmLead, setDeleteConfirmLead] = useState<Lead | null>(null);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState<boolean>(false);
 
   const handleFindEmail = async (id: string) => {
     if (!onFindEmail) return;
@@ -88,7 +117,67 @@ export const LeadTable: React.FC<LeadTableProps> = ({
     }
   };
 
-  if (leads.length === 0) {
+  const confirmBatchDelete = async () => {
+    if (!onBatchDeleteLeads || selectedLeadIds.length === 0) return;
+    setBatchDeleting(true);
+    setShowBatchDeleteConfirm(false);
+    try {
+      await onBatchDeleteLeads(selectedLeadIds);
+      setSelectedLeadIds([]);
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
+
+  const confirmSingleDelete = () => {
+    if (!deleteConfirmLead) return;
+    onDeleteLead(deleteConfirmLead.id);
+    setDeleteConfirmLead(null);
+  };
+
+  const renderSortIndicator = (columnName: string) => {
+    if (sortBy !== columnName) {
+      return <ArrowUpDown size={11} className="text-gray-300 group-hover:text-gray-500 transition-colors" />;
+    }
+    return sortOrder === 'ASC' ? (
+      <ArrowUp size={12} className="text-blue-600 font-bold" />
+    ) : (
+      <ArrowDown size={12} className="text-blue-600 font-bold" />
+    );
+  };
+
+  const formatDate = (dateVal: string | Date | undefined) => {
+    if (!dateVal) return 'Recently';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return 'Recently';
+
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+
+      if (diffHrs < 1) {
+        const diffMins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+        return `${diffMins}m ago`;
+      }
+      if (diffHrs < 24) {
+        return `${diffHrs}h ago`;
+      }
+      if (diffHrs < 48) {
+        return 'Yesterday';
+      }
+
+      return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+      });
+    } catch {
+      return 'Recently';
+    }
+  };
+
+  if (leads.length === 0 && !loading) {
     return (
       <div className="p-12 text-center bg-white border border-gray-200 rounded-xl shadow-sm">
         <div className="w-12 h-12 mx-auto mb-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-center text-gray-400">
@@ -96,41 +185,64 @@ export const LeadTable: React.FC<LeadTableProps> = ({
         </div>
         <h3 className="text-sm font-semibold text-gray-900 mb-1">No leads found</h3>
         <p className="text-xs text-gray-500 max-w-sm mx-auto">
-          No leads match your current search or filter criteria. Scrape new targets via the extension or clear active filters.
+          No leads match your current search or filter criteria. Scrape new targets via the extension/bookmarklet or clear active filters.
         </p>
       </div>
     );
   }
 
-  const startItem = (page - 1) * limit + 1;
+  const startItem = totalCount === 0 ? 0 : (page - 1) * limit + 1;
   const endItem = Math.min(page * limit, totalCount);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col relative">
       {/* Batch Actions Bar (Visible when rows are selected) */}
       {selectedLeadIds.length > 0 && (
-        <div className="bg-blue-50 border-b border-blue-200 px-6 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-medium text-blue-900">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-900">
             <CheckSquare size={15} className="text-blue-600" />
-            <span>{selectedLeadIds.length} leads selected for outreach</span>
+            <span>{selectedLeadIds.length} lead{selectedLeadIds.length > 1 ? 's' : ''} selected</span>
           </div>
-          <button
-            onClick={handleBatchSend}
-            disabled={batchSending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-colors disabled:opacity-50"
-          >
-            {batchSending ? (
-              <>
-                <Loader2 size={13} className="animate-spin text-white" />
-                <span>Sending SMS...</span>
-              </>
-            ) : (
-              <>
-                <Send size={13} />
-                <span>Send SMS to {selectedLeadIds.length} leads</span>
-              </>
-            )}
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* Delete Selected Button */}
+            <button
+              onClick={() => setShowBatchDeleteConfirm(true)}
+              disabled={batchDeleting || batchSending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-medium text-xs rounded-lg transition-colors shadow-xs disabled:opacity-50"
+            >
+              {batchDeleting ? (
+                <>
+                  <Loader2 size={13} className="animate-spin text-rose-600" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 size={13} className="text-rose-600" />
+                  <span>Delete selected</span>
+                </>
+              )}
+            </button>
+
+            {/* Send SMS Pitch Button */}
+            <button
+              onClick={handleBatchSend}
+              disabled={batchSending || batchDeleting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-colors shadow-xs disabled:opacity-50"
+            >
+              {batchSending ? (
+                <>
+                  <Loader2 size={13} className="animate-spin text-white" />
+                  <span>Sending SMS...</span>
+                </>
+              ) : (
+                <>
+                  <Send size={13} />
+                  <span>Send SMS to {selectedLeadIds.length} leads</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -138,7 +250,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-50/80 border-b border-gray-200 text-[11px] font-medium uppercase tracking-wider text-gray-500">
+            <tr className="bg-gray-50/80 border-b border-gray-200 text-[11px] font-medium uppercase tracking-wider text-gray-500 select-none">
               <th className="py-3 px-4 w-10 text-center">
                 <input
                   type="checkbox"
@@ -147,12 +259,61 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                   className="rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer"
                 />
               </th>
-              <th className="py-3 px-4">Business</th>
+
+              {/* Sortable: Business Name */}
+              <th
+                className="py-3 px-4 cursor-pointer hover:bg-gray-100/80 group transition-colors"
+                onClick={() => onSortColumn && onSortColumn('name')}
+                title="Sort by business name"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Business</span>
+                  {renderSortIndicator('name')}
+                </div>
+              </th>
+
               <th className="py-3 px-4">Contact</th>
-              <th className="py-3 px-4">Rating</th>
+
+              {/* Sortable: Rating */}
+              <th
+                className="py-3 px-4 cursor-pointer hover:bg-gray-100/80 group transition-colors"
+                onClick={() => onSortColumn && onSortColumn('rating')}
+                title="Sort by rating"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Rating</span>
+                  {renderSortIndicator('rating')}
+                </div>
+              </th>
+
               <th className="py-3 px-4">Gaps</th>
-              <th className="py-3 px-4">Score</th>
+
+              {/* Sortable: Opportunity Score */}
+              <th
+                className="py-3 px-4 cursor-pointer hover:bg-gray-100/80 group transition-colors"
+                onClick={() => onSortColumn && onSortColumn('opportunityScore')}
+                title="Sort by opportunity score"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Score</span>
+                  {renderSortIndicator('opportunityScore')}
+                </div>
+              </th>
+
               <th className="py-3 px-4">Status</th>
+
+              {/* Sortable: Date Added (Created At) */}
+              <th
+                className="py-3 px-4 cursor-pointer hover:bg-gray-100/80 group transition-colors"
+                onClick={() => onSortColumn && onSortColumn('createdAt')}
+                title="Sort by date added"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Added</span>
+                  {renderSortIndicator('createdAt')}
+                </div>
+              </th>
+
               <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -330,6 +491,14 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                     </select>
                   </td>
 
+                  {/* Date Added (Created At) */}
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                      <Calendar size={11} className="text-gray-400 shrink-0" />
+                      <span>{formatDate(lead.createdAt)}</span>
+                    </div>
+                  </td>
+
                   {/* Action Buttons */}
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
@@ -372,6 +541,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                       <button
                         onClick={() => onOpenPitch(lead)}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                        title="Generate AI sales pitch"
                       >
                         <Mail size={11} />
                         <span>Pitch</span>
@@ -390,11 +560,11 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                         </a>
                       )}
 
-                      {/* Delete Lead */}
+                      {/* Delete Lead Button */}
                       <button
-                        onClick={() => onDeleteLead(lead.id)}
+                        onClick={() => setDeleteConfirmLead(lead)}
                         className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="Delete lead"
+                        title="Delete lead from CRM"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -453,6 +623,74 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Single Delete Confirmation Modal */}
+      {deleteConfirmLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-gray-900">Delete Lead?</h4>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Are you sure you want to delete <strong className="text-gray-800">"{deleteConfirmLead.name}"</strong>? This will remove all notes and details permanently.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => setDeleteConfirmLead(null)}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSingleDelete}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-xs"
+              >
+                Delete Lead
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Modal */}
+      {showBatchDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-gray-900">Delete Selected Leads?</h4>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Are you sure you want to delete <strong className="text-gray-800">{selectedLeadIds.length} leads</strong>? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => setShowBatchDeleteConfirm(false)}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBatchDelete}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-xs"
+              >
+                Delete {selectedLeadIds.length} Leads
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

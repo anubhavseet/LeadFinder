@@ -6,9 +6,12 @@ import { LeadsResolver } from './leads.resolver';
 import { EmailFinderService } from './email-finder.service';
 import { SmsDispatcherService } from './sms-dispatcher.service';
 
+import { AuthModule } from '../auth/auth.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Lead.name, schema: LeadSchema }]),
+    AuthModule,
   ],
   providers: [LeadsService, LeadsResolver, EmailFinderService, SmsDispatcherService],
   exports: [LeadsService, EmailFinderService, SmsDispatcherService],
