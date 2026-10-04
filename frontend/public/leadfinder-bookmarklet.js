@@ -38,6 +38,8 @@
   let isScraping = false;
   let isPaused = false;
   let scrapedLeadsMap = new Map(); // Key: uniqueKey
+  let existingCrmKeysSet = new Set(); // Cached signatures (names, phones) of leads already in CRM
+  let skippedCrmDuplicatesCount = 0;   // Count of duplicate leads skipped in this session
   let maxLeadsTarget = 100;
   let targetSearchQuery = '';
   let backendOnline = false;
@@ -812,6 +814,10 @@
           <span class="stat-value" id="stat-scraped">0</span>
         </div>
         <div class="stat-row">
+          <span class="stat-label">Skipped (In CRM)</span>
+          <span class="stat-value" id="stat-skipped" style="color: #38bdf8;">0 skipped</span>
+        </div>
+        <div class="stat-row">
           <span class="stat-label">Stealth Scroll Delay</span>
           <span class="stat-value highlight">2.0s - 4.5s (Humanized)</span>
         </div>
@@ -869,6 +875,7 @@
   const filterMaxRating = document.getElementById('filter-max-rating');
   const filterMaxReviews = document.getElementById('filter-max-reviews');
   const statScraped = document.getElementById('stat-scraped');
+  const statSkipped = document.getElementById('stat-skipped');
   const statStatusText = document.getElementById('stat-status-text');
   const statProgressFill = document.getElementById('stat-progress-fill');
   const serverStatus = document.getElementById('server-status');
@@ -942,6 +949,7 @@
   if (btnResetSession) {
     btnResetSession.addEventListener('click', () => {
       scrapedLeadsMap.clear();
+      skippedCrmDuplicatesCount = 0;
       if (typeof inspectedCardsSet !== 'undefined') inspectedCardsSet.clear();
       try { localStorage.removeItem('leadfinder_leads'); } catch (e) {}
       updateStats();
@@ -1391,7 +1399,12 @@
   function updateStats() {
     const total = scrapedLeadsMap.size;
     statScraped.innerText = total;
-    if (minText) minText.innerText = `${total} Leads Scraped`;
+    if (statSkipped) {
+      statSkipped.innerText = `${skippedCrmDuplicatesCount} skipped`;
+    }
+    if (minText) {
+      minText.innerText = `${total} New (${skippedCrmDuplicatesCount} in CRM)`;
+    }
 
     const pct = Math.min(100, Math.round((total / maxLeadsTarget) * 100));
     statProgressFill.style.width = `${pct}%`;
@@ -1823,6 +1836,40 @@
     return null;
   }
 
+  // Fetch existing lead signatures from NestJS backend for smart zero-duplicate scraping
+  async function fetchExistingCrmLeadSignatures() {
+    if (!currentUser) return;
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch('http://localhost:4000/graphql', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({
+          query: `
+            query GetExistingLeadKeys {
+              existingLeadKeys
+            }
+          `,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.data && Array.isArray(result.data.existingLeadKeys)) {
+        existingCrmKeysSet = new Set(result.data.existingLeadKeys);
+        if (existingCrmKeysSet.size > 0) {
+          showNotice(`⚡ Smart Deduplication: ${existingCrmKeysSet.size} lead signatures indexed from CRM`, 'info');
+        }
+      }
+    } catch (e) {
+      console.warn('[LeadFinder] Could not fetch existing lead keys from CRM:', e);
+    }
+  }
+
   // Set of card identifiers already inspected in this session
   const inspectedCardsSet = new Set();
 
@@ -2019,6 +2066,15 @@
       const cardKey = (googleMapsUrl || name).toLowerCase();
       inspectedCardsSet.add(cardKey);
 
+      // FAST CRM DEDUPLICATION CHECK 1: Immediate check by normalized business name
+      const cleanName = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanName && existingCrmKeysSet.has('name:' + cleanName)) {
+        skippedCrmDuplicatesCount++;
+        updateStats();
+        statStatusText.innerText = `⏭️ Skipped "${name}" (Already in CRM)`;
+        continue;
+      }
+
       // Multilingual Rating & Review Count from summary
       let rating = extractRating(card);
       let reviewCount = extractReviewCount(card);
@@ -2076,6 +2132,20 @@
         }
       });
 
+      // FAST CRM DEDUPLICATION CHECK 2: Match by phone if visible on card summary
+      if (phone) {
+        const cleanDigits = phone.replace(/[^0-9]/g, '');
+        if (cleanDigits.length >= 7 && (
+          existingCrmKeysSet.has('phone:' + cleanDigits) ||
+          (cleanDigits.length > 7 && existingCrmKeysSet.has('phone:' + cleanDigits.slice(-7)))
+        )) {
+          skippedCrmDuplicatesCount++;
+          updateStats();
+          statStatusText.innerText = `⏭️ Skipped "${name}" (Phone in CRM)`;
+          continue;
+        }
+      }
+
       // Quick filter check before deep inspect:
       // If user specified maxRating or maxReviews and this summary card clearly exceeds it, skip!
       if (activeFilters.maxRating !== 'any' && rating !== null) {
@@ -2109,6 +2179,20 @@
           if (details.category) category = details.category;
           if (details.rating !== null && rating === null) rating = details.rating;
           if (details.reviewCount !== null && reviewCount === null) reviewCount = details.reviewCount;
+        }
+
+        // FAST CRM DEDUPLICATION CHECK 3: Match by deep-inspected phone
+        if (phone) {
+          const cleanDigits = phone.replace(/[^0-9]/g, '');
+          if (cleanDigits.length >= 7 && (
+            existingCrmKeysSet.has('phone:' + cleanDigits) ||
+            (cleanDigits.length > 7 && existingCrmKeysSet.has('phone:' + cleanDigits.slice(-7)))
+          )) {
+            skippedCrmDuplicatesCount++;
+            updateStats();
+            statStatusText.innerText = `⏭️ Skipped "${name}" (Phone in CRM)`;
+            continue;
+          }
         }
       }
 
@@ -2203,21 +2287,25 @@
 
     let noNewLeadsCount = 0;
     let lastSize = scrapedLeadsMap.size;
+    let lastInspectedCount = inspectedCardsSet.size;
 
     while (isScraping && !isPaused) {
       if (scrapedLeadsMap.size >= maxLeadsTarget) {
-        showNotice(`Target cap of ${maxLeadsTarget} leads reached! Auto-syncing...`, 'success');
+        showNotice(`Target cap of ${maxLeadsTarget} fresh leads reached! Auto-syncing...`, 'success');
         break;
       }
 
       // Process visible items (with deep inspection for phone numbers)
-      await parseVisibleCards(true);
+      const newlyFoundInPass = await parseVisibleCards(true);
 
-      if (scrapedLeadsMap.size === lastSize) {
+      const currentInspectedCount = inspectedCardsSet.size;
+      // Progress check: count advances if new leads collected OR if existing leads were evaluated/skipped
+      if (scrapedLeadsMap.size === lastSize && currentInspectedCount === lastInspectedCount) {
         noNewLeadsCount++;
       } else {
         noNewLeadsCount = 0;
         lastSize = scrapedLeadsMap.size;
+        lastInspectedCount = currentInspectedCount;
       }
 
       // Check if end of list reached (multi-language support)
@@ -2280,9 +2368,15 @@
       feed.dispatchEvent(new Event('scroll', { bubbles: true }));
       window.dispatchEvent(new Event('scroll', { bubbles: true }));
 
-      // Delay between scrolls (1.8s - 3.5s)
-      const randomDelay = Math.floor(MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS));
-      statStatusText.innerText = `Micro-scroll (${scrapedLeadsMap.size}/${maxLeadsTarget} leads)...`;
+      // Adaptive scroll delay: Fast-forward past duplicate-dense areas, standard humanized delay for new leads
+      const isFastForwarding = newlyFoundInPass === 0 && skippedCrmDuplicatesCount > 0 && scrapedLeadsMap.size < maxLeadsTarget;
+      const minD = isFastForwarding ? 800 : MIN_DELAY_MS;
+      const maxD = isFastForwarding ? 1300 : MAX_DELAY_MS;
+      const randomDelay = Math.floor(minD + Math.random() * (maxD - minD));
+
+      statStatusText.innerText = isFastForwarding
+        ? `⚡ Fast-forwarding past CRM duplicates (${scrapedLeadsMap.size}/${maxLeadsTarget} fresh)...`
+        : `Micro-scroll (${scrapedLeadsMap.size}/${maxLeadsTarget} fresh leads)...`;
 
       await new Promise((resolve) => setTimeout(resolve, randomDelay));
     }
@@ -2294,31 +2388,39 @@
     updateStartButtonState();
 
     if (count > 0) {
-      showNotice(`Crawl completed! ${count} leads extracted. Syncing to CRM...`, 'info');
+      showNotice(`Crawl completed! ${count} fresh leads extracted (${skippedCrmDuplicatesCount} skipped in CRM). Syncing to CRM...`, 'info');
       await syncLeadsToBackend();
     } else {
-      const cardElements = document.querySelectorAll('div.Nv2PK, div[role="article"]');
-      if (cardElements.length > 0 && activeFilters.mustHavePhone) {
-        showNotice(
-          `Crawl finished with 0 leads: places skipped because they didn't match filters. Try unchecking "Must Have Phone Number" or "Only Leads WITH NO WEBSITE".`,
-          'warning'
-        );
+      if (skippedCrmDuplicatesCount > 0) {
+        showNotice(`Crawl finished: All ${skippedCrmDuplicatesCount} businesses found already exist in your CRM! 0 duplicates saved.`, 'info');
       } else {
-        showNotice('No matching leads found for current filters.', 'info');
+        const cardElements = document.querySelectorAll('div.Nv2PK, div[role="article"]');
+        if (cardElements.length > 0 && activeFilters.mustHavePhone) {
+          showNotice(
+            `Crawl finished with 0 leads: places skipped because they didn't match filters. Try unchecking "Must Have Phone Number" or "Only Leads WITH NO WEBSITE".`,
+            'warning'
+          );
+        } else {
+          showNotice('No matching leads found for current filters.', 'info');
+        }
       }
     }
   }
 
   // Start a fresh scraping session
-  function startScrapingSession() {
+  async function startScrapingSession() {
     scrapedLeadsMap.clear();
     inspectedCardsSet.clear();
+    skippedCrmDuplicatesCount = 0;
     try { localStorage.removeItem('leadfinder_leads'); } catch (e) {}
     updateStats();
 
     isScraping = true;
     isPaused = false;
     updateStartButtonState();
+
+    statStatusText.innerText = 'Indexing CRM leads...';
+    await fetchExistingCrmLeadSignatures();
     runStealthScrollLoop();
   }
 
@@ -2421,6 +2523,22 @@
         const { addedCount, updatedCount } = result.data.syncLeads;
         serverStatus.classList.add('online');
         lastSyncedLeads = [...leadsArray];
+
+        // Cache synced leads in local deduplication index
+        leadsArray.forEach((lead) => {
+          if (lead.name) {
+            const cleanN = lead.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (cleanN) existingCrmKeysSet.add('name:' + cleanN);
+          }
+          if (lead.phone) {
+            const cleanP = lead.phone.replace(/[^0-9]/g, '');
+            if (cleanP.length >= 7) {
+              existingCrmKeysSet.add('phone:' + cleanP);
+              if (cleanP.length > 7) existingCrmKeysSet.add('phone:' + cleanP.slice(-7));
+            }
+          }
+        });
+
         showNotice(`✅ Synced! Added: ${addedCount}, Updated: ${updatedCount} in your CRM. Ready for next search!`, 'success');
 
         // CRITICAL RESET: Clear session map so user can immediately run next search without getting stuck

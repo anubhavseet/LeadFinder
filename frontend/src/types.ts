@@ -20,6 +20,8 @@ export interface Lead {
   createdAt: string;
 }
 
+export type DashboardTab = 'crm' | 'engine' | 'intelligence' | 'pitches' | 'billing';
+
 export interface LeadStats {
   totalLeads: number;
   noWebsiteCount: number;

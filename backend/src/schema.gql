@@ -140,6 +140,9 @@ input PaginationInput {
 }
 
 type Query {
+  """Get lightweight normalized deduplication tokens for scraper"""
+  existingLeadKeys: [String!]!
+
   """Fetch single lead by ID"""
   lead(id: ID!): Lead
 

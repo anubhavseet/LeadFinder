@@ -12,7 +12,7 @@ export const AppContent: React.FC = () => {
   const getInitialView = (): 'landing' | 'crm' => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.toLowerCase();
-      if (hash === '#crm' || hash === '#dashboard') {
+      if (hash.startsWith('#crm') || hash.startsWith('#dashboard')) {
         return 'crm';
       }
     }
@@ -27,7 +27,7 @@ export const AppContent: React.FC = () => {
 
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
-      if (hash === '#crm' || hash === '#dashboard') {
+      if (hash.startsWith('#crm') || hash.startsWith('#dashboard')) {
         if (!isAuthenticated) {
           setCurrentView('landing');
           window.location.hash = '';

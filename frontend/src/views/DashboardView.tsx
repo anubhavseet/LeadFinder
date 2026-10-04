@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Header } from '../components/Header';
 import { StatsCards } from '../components/StatsCards';
 import { LeadFilters } from '../components/LeadFilters';
 import { LeadTable } from '../components/LeadTable';
 import { PitchModal } from '../components/PitchModal';
-import { Lead, LeadStats } from '../types';
+import { BookmarkletModal } from '../components/bookmarklet/BookmarkletModal';
+import { DashboardSidebar } from '../components/dashboard/DashboardSidebar';
+import { DashboardTopNav } from '../components/dashboard/DashboardTopNav';
+import { LeadEngineView } from './dashboard/LeadEngineView';
+import { IntelligenceView } from './dashboard/IntelligenceView';
+import { AiPitchHubView } from './dashboard/AiPitchHubView';
+import { BillingView } from './dashboard/BillingView';
+import { Lead, LeadStats, DashboardTab } from '../types';
 import {
   getLeads,
   getLeadStats,
@@ -15,7 +21,7 @@ import {
   sendSmsPitchForLead,
   batchSendSmsPitches,
 } from '../api/graphqlClient';
-import { ArrowLeft, User as UserIcon, LogOut } from 'lucide-react';
+import { Download, Compass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface DashboardViewProps {
@@ -23,7 +29,48 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateLanding }) => {
-  const { user, logout, openProfileModal } = useAuth();
+  const { user } = useAuth();
+
+  // Tab & Mobile Navigation
+  const getInitialTab = (): DashboardTab => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('engine')) return 'engine';
+      if (hash.includes('intelligence')) return 'intelligence';
+      if (hash.includes('pitches')) return 'pitches';
+      if (hash.includes('billing')) return 'billing';
+    }
+    return 'crm';
+  };
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>(getInitialTab);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isBookmarkletModalOpen, setIsBookmarkletModalOpen] = useState(false);
+
+  // Sync hash routing
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('engine')) setActiveTab('engine');
+      else if (hash.includes('intelligence')) setActiveTab('intelligence');
+      else if (hash.includes('pitches')) setActiveTab('pitches');
+      else if (hash.includes('billing')) setActiveTab('billing');
+      else if (hash === '#crm' || hash === '#dashboard') setActiveTab('crm');
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const handleSelectTab = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    if (tab === 'crm') {
+      window.location.hash = 'crm';
+    } else {
+      window.location.hash = `crm/${tab}`;
+    }
+  };
+
+  // Lead Data states
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<LeadStats>({
     totalLeads: 0,
@@ -45,7 +92,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateLanding 
   const [hasEmail, setHasEmail] = useState<boolean | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
 
-  // Sorting states (defaults to Newest First)
+  // Sorting states
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
 
@@ -73,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateLanding 
     };
   }, [search]);
 
-  // Reset page to 1 whenever filters or sorting change
+  // Reset page to 1 whenever filters change
   const prevFiltersRef = useRef<string>('');
   useEffect(() => {
     const filtersKey = `${debouncedSearch}|${category}|${noWebsiteOnly}|${lowRatingOnly}|${lowReviewsOnly}|${highScoreOnly}|${hasPhone}|${hasEmail}|${selectedStatus}|${sortBy}|${sortOrder}`;
@@ -261,119 +308,181 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateLanding 
     }
   };
 
+  const exportToCSV = () => {
+    if (!leads || leads.length === 0) return;
+    const headers = ['Name', 'Category', 'Address', 'Phone', 'Website', 'Rating', 'Reviews', 'Opportunity Score', 'Status', 'Search Query'];
+    const rows = leads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${(l.category || '').replace(/"/g, '""')}"`,
+      `"${(l.address || '').replace(/"/g, '""')}"`,
+      `"${(l.phone || '').replace(/"/g, '""')}"`,
+      `"${(l.website || '').replace(/"/g, '""')}"`,
+      l.rating || '',
+      l.reviewCount || '',
+      l.opportunityScore || 0,
+      l.status || 'NEW',
+      `"${(l.searchQuery || '').replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `leadfinder_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="min-h-[100dvh] bg-[#F7F8FA] text-gray-900 font-sans antialiased p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto flex flex-col gap-6">
-        {/* Navigation Breadcrumb / Top Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onNavigateLanding}
-              className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-gray-950 transition-colors"
-            >
-              <ArrowLeft size={14} />
-              <span>Back to overview</span>
-            </button>
+    <div className="min-h-[100dvh] bg-[#F8FAFC] text-slate-900 font-sans antialiased flex flex-row">
+      {/* 1. App Sidebar */}
+      <DashboardSidebar
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        leadsCount={totalCount || leads.length}
+        isOpenMobile={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+      />
 
-            <div className="hidden sm:inline-flex items-center gap-2 text-xs text-gray-400">
-              <span>|</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span className="text-gray-500 font-medium">CRM workspace · Live sync</span>
-            </div>
-          </div>
-
-          {/* User profile & actions */}
-          <div className="flex items-center gap-3">
-            {user && (
-              <button
-                onClick={openProfileModal}
-                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200/80 transition-colors text-xs font-medium text-gray-700 cursor-pointer"
-                title="Account Settings & API Key"
-              >
-                <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
-                  {user.name ? user.name[0].toUpperCase() : 'U'}
-                </div>
-                <span className="max-w-[120px] truncate">{user.name || user.email}</span>
-                <span className="text-[10px] text-gray-400 font-normal">({user.role || 'user'})</span>
-              </button>
-            )}
-
-            <button
-              onClick={logout}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/50 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut size={13} />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </div>
-
-        <Header
+      {/* 2. Main Content Workspace */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Sticky Header */}
+        <DashboardTopNav
+          activeTab={activeTab}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          onNavigateLanding={onNavigateLanding}
+          onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
           onRefresh={loadData}
-          leads={leads}
+          isRefreshing={loading}
           isBackendConnected={isBackendConnected}
         />
 
-        <StatsCards stats={stats} />
+        {/* Dynamic Route Viewport */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          {activeTab === 'crm' && (
+            <div className="space-y-6">
+              {/* Quick Actions Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200/90 rounded-2xl px-5 py-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-800">
+                    Lead Database
+                  </span>
+                  <span className="text-[11px] font-mono font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {totalCount} Extracted
+                  </span>
+                </div>
 
-        <LeadFilters
-          search={search}
-          setSearch={setSearch}
-          category={category}
-          setCategory={setCategory}
-          noWebsiteOnly={noWebsiteOnly}
-          setNoWebsiteOnly={setNoWebsiteOnly}
-          lowRatingOnly={lowRatingOnly}
-          setLowRatingOnly={setLowRatingOnly}
-          lowReviewsOnly={lowReviewsOnly}
-          setLowReviewsOnly={setLowReviewsOnly}
-          highScoreOnly={highScoreOnly}
-          setHighScoreOnly={setHighScoreOnly}
-          hasPhone={hasPhone}
-          setHasPhone={setHasPhone}
-          hasEmail={hasEmail}
-          setHasEmail={setHasEmail}
-          selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortOrder={sortOrder}
-          setSortOrder={setSortOrder}
-        />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={exportToCSV}
+                    disabled={leads.length === 0}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Download active results as CSV"
+                  >
+                    <Download size={13} />
+                    <span>Export CSV</span>
+                  </button>
 
-        <LeadTable
-          leads={leads}
-          totalCount={totalCount}
-          page={page}
-          totalPages={totalPages}
-          limit={limit}
-          loading={loading}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onSortColumn={handleSortColumn}
-          onPageChange={(p) => setPage(p)}
-          onLimitChange={(l) => {
-            setLimit(l);
-            setPage(1);
-          }}
-          onOpenPitch={(lead) => setSelectedLeadForPitch(lead)}
-          onUpdateStatus={handleUpdateStatus}
-          onDeleteLead={handleDeleteLead}
-          onBatchDeleteLeads={handleBatchDeleteLeads}
-          onFindEmail={handleFindEmail}
-          onSendSmsPitch={handleSendSmsPitch}
-          onBatchSendSmsPitches={handleBatchSendSmsPitches}
-        />
+                  <button
+                    onClick={() => handleSelectTab('engine')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <Compass size={13} />
+                    <span>Launch Scraper</span>
+                  </button>
+                </div>
+              </div>
 
-        {selectedLeadForPitch && (
-          <PitchModal
-            lead={selectedLeadForPitch}
-            onClose={() => setSelectedLeadForPitch(null)}
-            onSendSmsPitch={handleSendSmsPitch}
-          />
-        )}
+              {/* Stats Ribbon */}
+              <StatsCards stats={stats} />
+
+              {/* Filters */}
+              <LeadFilters
+                search={search}
+                setSearch={setSearch}
+                category={category}
+                setCategory={setCategory}
+                noWebsiteOnly={noWebsiteOnly}
+                setNoWebsiteOnly={setNoWebsiteOnly}
+                lowRatingOnly={lowRatingOnly}
+                setLowRatingOnly={setLowRatingOnly}
+                lowReviewsOnly={lowReviewsOnly}
+                setLowReviewsOnly={setLowReviewsOnly}
+                highScoreOnly={highScoreOnly}
+                setHighScoreOnly={setHighScoreOnly}
+                hasPhone={hasPhone}
+                setHasPhone={setHasPhone}
+                hasEmail={hasEmail}
+                setHasEmail={setHasEmail}
+                selectedStatus={selectedStatus}
+                setSelectedStatus={setSelectedStatus}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+              />
+
+              {/* Table */}
+              <LeadTable
+                leads={leads}
+                totalCount={totalCount}
+                page={page}
+                totalPages={totalPages}
+                limit={limit}
+                loading={loading}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSortColumn={handleSortColumn}
+                onPageChange={(p) => setPage(p)}
+                onLimitChange={(l) => {
+                  setLimit(l);
+                  setPage(1);
+                }}
+                onOpenPitch={(lead) => setSelectedLeadForPitch(lead)}
+                onUpdateStatus={handleUpdateStatus}
+                onDeleteLead={handleDeleteLead}
+                onBatchDeleteLeads={handleBatchDeleteLeads}
+                onFindEmail={handleFindEmail}
+                onSendSmsPitch={handleSendSmsPitch}
+                onBatchSendSmsPitches={handleBatchSendSmsPitches}
+              />
+            </div>
+          )}
+
+          {activeTab === 'engine' && (
+            <LeadEngineView onNavigateCrm={() => handleSelectTab('crm')} />
+          )}
+
+          {activeTab === 'intelligence' && (
+            <IntelligenceView
+              leads={leads}
+              stats={stats}
+              onOpenPitch={(lead) => setSelectedLeadForPitch(lead)}
+            />
+          )}
+
+          {activeTab === 'pitches' && <AiPitchHubView />}
+
+          {activeTab === 'billing' && (
+            <BillingView leadsCount={totalCount || leads.length} />
+          )}
+        </main>
       </div>
+
+      {/* Global Modals */}
+      {selectedLeadForPitch && (
+        <PitchModal
+          lead={selectedLeadForPitch}
+          onClose={() => setSelectedLeadForPitch(null)}
+          onSendSmsPitch={handleSendSmsPitch}
+        />
+      )}
+
+      <BookmarkletModal
+        isOpen={isBookmarkletModalOpen}
+        onClose={() => setIsBookmarkletModalOpen(false)}
+      />
     </div>
   );
 };

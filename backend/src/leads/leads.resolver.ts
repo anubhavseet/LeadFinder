@@ -47,6 +47,13 @@ export class LeadsResolver {
     return this.leadsService.getStats(userId);
   }
 
+  @Query(() => [String], { name: 'existingLeadKeys', description: 'Get lightweight normalized deduplication tokens for scraper' })
+  @UseGuards(GqlAuthGuard)
+  async getExistingLeadKeys(@CurrentUser() user: User): Promise<string[]> {
+    const userId = user?.id || (user as any)?._id?.toString();
+    return this.leadsService.getExistingLeadKeys(userId);
+  }
+
   @Mutation(() => SyncLeadsResult, { name: 'syncLeads', description: 'Batch upload scraped leads from Chrome Extension' })
   @UseGuards(GqlAuthGuard)
   async syncLeads(

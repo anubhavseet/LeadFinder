@@ -246,6 +246,42 @@ export class LeadsService {
     return { checked: noWebsiteLeads.length, updatedCount };
   }
 
+  /**
+   * Return lightweight normalized deduplication tokens (names, phones, composite keys)
+   * for all leads owned by the user. Fast projection query with lean execution.
+   */
+  async getExistingLeadKeys(userId?: string): Promise<string[]> {
+    const filter = userId ? { userId } : {};
+    const leads = await this.leadModel
+      .find(filter, { name: 1, phone: 1, address: 1 })
+      .lean()
+      .exec();
+
+    const keys = new Set<string>();
+    for (const l of leads) {
+      if (l.name) {
+        const cleanName = l.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanName) {
+          keys.add(`name:${cleanName}`);
+          if (l.address) {
+            const cleanAddr = l.address.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (cleanAddr) keys.add(`comp:${cleanName}_${cleanAddr}`);
+          }
+        }
+      }
+      if (l.phone) {
+        const cleanPhone = l.phone.replace(/[^0-9]/g, '');
+        if (cleanPhone.length >= 7) {
+          keys.add(`phone:${cleanPhone}`);
+          if (cleanPhone.length > 7) {
+            keys.add(`phone:${cleanPhone.slice(-7)}`);
+          }
+        }
+      }
+    }
+    return Array.from(keys);
+  }
+
   async findAll(filter?: LeadFilterInput, pagination?: PaginationInput, userId?: string) {
     const conditions: any[] = [];
 
